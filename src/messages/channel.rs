@@ -256,10 +256,10 @@ fn format_access_permission(permission_overrides: &Vec<PermissionOverwrite>) -> 
 
         let permission_line = match permission.kind {
             PermissionOverwriteType::Role(role_id) => {
-                format!("  - role** <@&{role_id}>: {emoji}")
+                format!("  - Role <@&{role_id}>: {emoji}")
             }
             PermissionOverwriteType::Member(user_id) => {
-                format!("  - user** <@{user_id}>: {emoji}")
+                format!("  - User <@{user_id}>: {emoji}")
             }
             _ => "Invalid permission".to_string(),
         };
