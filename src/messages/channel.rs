@@ -183,8 +183,8 @@ fn build_channel_change_line(change: &Change) -> Option<String> {
 
         // TODO
         Change::PermissionOverwrites { old, new } => match (old, new) {
-            (_, Some(new)) => format_permission_override_channel(new),
-            (Some(old), _) => format_permission_override_channel(old),
+            (_, Some(new)) => format_access_permission(new),
+            (Some(old), _) => format_access_permission(old),
             _ => return None,
         },
         Change::Flags { old, new } => match (old, new) {
@@ -248,24 +248,23 @@ fn format_flags(flags: &u64) -> Option<String> {
     Some(result.join("\n"))
 }
 
-fn format_permission_override_channel(permission_overrides: &Vec<PermissionOverwrite>) -> String {
+fn format_access_permission(permission_overrides: &Vec<PermissionOverwrite>) -> String {
     let mut result = Vec::new();
+    result.push("- **Access:**".to_string());
     for permission in permission_overrides {
+        let emoji = perm_to_icon(permission.allow, permission.deny, Permissions::VIEW_CHANNEL);
+
         let permission_line = match permission.kind {
             PermissionOverwriteType::Role(role_id) => {
-                format!("- **Permissions for role** <@&{role_id}>")
+                format!("  - role** <@&{role_id}>: {emoji}")
             }
             PermissionOverwriteType::Member(user_id) => {
-                format!("- **Permissions for user** <@{user_id}>")
+                format!("  - user** <@{user_id}>: {emoji}")
             }
             _ => "Invalid permission".to_string(),
         };
 
         result.push(permission_line);
-        result.push(format_permission_override(
-            permission.allow,
-            permission.deny,
-        ));
     }
     result.join("\n")
 }
