@@ -39,7 +39,7 @@ pub fn build_edited_message(
     let message_author = build_message_info(&user, Some(user_id));
     let embed_author = build_embed_author(&user, user_id);
 
-    let formatted_channel = format_channel(channel, channel_id);
+    let formatted_channel = format_channel(&channel, channel_id);
 
     let edited_string = match edits {
         1 => "(edited once)".to_string(),
@@ -95,7 +95,7 @@ pub async fn build_deleted_message(
         String::new()
     };
 
-    let formatted_channel = format_channel(channel, channel_id);
+    let formatted_channel = format_channel(&channel, channel_id);
 
     let content = match content {
         Some(content) => content,
@@ -178,7 +178,7 @@ pub fn build_bulk_delete_message(
         }
     }
 
-    let formatted_channel = format_channel(channel, channel_id);
+    let formatted_channel = format_channel(&channel, channel_id);
 
     let embed_description = format!(
         "**{count} messages deleted in** {formatted_channel}\n\n\

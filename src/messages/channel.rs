@@ -1,7 +1,7 @@
 use serenity::all::{
-    AuditLogEntry, Change, ChannelAction, ChannelFlags, ChannelId, ChannelOverwriteAction,
+    AuditLogEntry, Change, Channel, ChannelAction, ChannelFlags, ChannelId, ChannelOverwriteAction,
     ChannelType, Colour, Context, CreateEmbed, CreateMessage, EntityType, PermissionOverwrite,
-    PermissionOverwriteType, Permissions, User, UserId, audit_log::Action,
+    PermissionOverwriteType, Permissions, ThreadAction, User, UserId, audit_log::Action,
 };
 
 use crate::{
@@ -24,12 +24,28 @@ pub async fn build_channel_message(
 
     let channel_id = ChannelId::new(target_id.get());
     let channel = channel_id.to_channel(&ctx).await.ok();
-    let channel = format_channel(channel, channel_id);
+    let channel_str = format_channel(&channel, channel_id);
+
+    let channel_type = if let Some(Channel::Guild(gc)) = channel {
+        match gc.kind {
+            ChannelType::PublicThread => "thread",
+            ChannelType::PrivateThread => "private thread",
+            ChannelType::Forum => "forum",
+            ChannelType::Voice => "voice channel",
+            _ => "channel",
+        }
+    } else {
+        "channel"
+    };
 
     let (action, colour) = match entry.action {
-        Action::Channel(ChannelAction::Create) => ("created", Colour::new(0x00FF00)),
-        Action::Channel(ChannelAction::Delete) => ("deleted", Colour::new(0xFF0000)),
-        Action::Channel(ChannelAction::Update) => {
+        Action::Channel(ChannelAction::Create) | Action::Thread(ThreadAction::Create) => {
+            ("created", Colour::new(0x00FF00))
+        }
+        Action::Channel(ChannelAction::Delete) | Action::Thread(ThreadAction::Delete) => {
+            ("deleted", Colour::new(0xFF0000))
+        }
+        Action::Channel(ChannelAction::Update) | Action::Thread(ThreadAction::Update) => {
             // ignore channel updates made by bots
             if let Some(user) = &user
                 && user.bot
@@ -58,8 +74,8 @@ pub async fn build_channel_message(
     };
 
     let embed_author = build_embed_author(&user, entry.user_id);
-    let message = format!("{user_str} **{action} channel** {channel}\n\n{changes}");
-    let title = format!("CHANNEL {}", action.to_uppercase());
+    let message = format!("{user_str} **{action} {channel_type}** {channel_str}\n\n{changes}");
+    let title = format!("{channel_type} {action}").to_uppercase();
 
     let embed = CreateEmbed::new()
         .title(title)
@@ -92,7 +108,7 @@ pub async fn build_permission_override_message(
 
     let channel_id = ChannelId::new(target_id.get());
     let channel = channel_id.to_channel(&ctx).await.ok();
-    let channel = format_channel(channel, channel_id);
+    let channel = format_channel(&channel, channel_id);
 
     let permission_target_string = if let Some(role_name) = options.role_name {
         if role_name == "@everyone" {
@@ -164,6 +180,10 @@ fn build_channel_change_line(change: &Change) -> Option<String> {
         Change::Name { old, new } => format_string_change!("Name", old, new),
         Change::Topic { old, new } => format_string_change!("Description", old, new),
         Change::Nsfw { old, new } => format_boolean_change!("NSFW", old, new),
+        Change::Locked { old, new } => format_boolean_change!("Locked", old, new),
+        Change::Archived { old, new } => format_boolean_change!("Archived", old, new),
+        Change::Invitable { old, new } => format_boolean_change!("Inviteable", old, new),
+
         Change::DefaultAutoArchiveDuration { old, new } => {
             format_numeric_change_operation!("Archive duration", "h", old, new, |v| v / 60)
         }

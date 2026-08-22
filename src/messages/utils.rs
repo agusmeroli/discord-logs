@@ -63,11 +63,17 @@ pub fn format_role(role: &Option<Role>, role_id: RoleId) -> String {
     }
 }
 
-pub fn format_channel(channel: Option<Channel>, channel_id: ChannelId) -> String {
+pub fn format_channel(channel: &Option<Channel>, channel_id: ChannelId) -> String {
     match channel {
-        Some(Channel::Guild(gc)) => format!("<#{channel_id}>({})", gc.name),
+        Some(Channel::Guild(gc)) => {
+            if let Some(parent_id) = gc.parent_id {
+                format!("<#{parent_id}>*>*<#{channel_id}>({})", gc.name)
+            } else {
+                format!("<#{channel_id}>({})", gc.name)
+            }
+        }
         Some(Channel::Private(pc)) => {
-            let recipient = pc.recipient;
+            let recipient = &pc.recipient;
             format!("DM with <@{}>({})", recipient.id.get(), recipient.name)
         }
         _ => format!("<#{channel_id}>"),

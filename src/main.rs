@@ -659,7 +659,7 @@ impl EventHandler for Handler {
         let msg = match &entry.action {
             Action::GuildUpdate => return,
             Action::Channel(_) => messages::channel::build_channel_message(entry, user, &ctx).await,
-            Action::ChannelOverwrite(_) => {
+            Action::ChannelOverwrite(_) | Action::Thread(_) => {
                 messages::channel::build_permission_override_message(entry, user, &ctx).await
             }
             Action::Role(_) => {
@@ -678,7 +678,6 @@ impl EventHandler for Handler {
                 messages::member::build_bot_message(entry, user, &ctx).await
             }
             Action::Member(MemberAction::Update) => return,
-            Action::Thread(_) => return,
             Action::Webhook(_) => return,
             Action::Emoji(_) => return,
             Action::Message(_) => return,
