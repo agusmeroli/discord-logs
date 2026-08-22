@@ -4,4 +4,5 @@ pub mod invites;
 pub mod member;
 pub mod messages;
 pub mod roles;
+pub mod sticker;
 pub mod utils;

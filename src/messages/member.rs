@@ -19,6 +19,10 @@ pub async fn build_role_change_message(
         return None;
     };
 
+    let Some(changes) = entry.changes else {
+        return None;
+    };
+
     // Ignore self-roles, like in onboarding or server guide
     if target_id.get() == entry.user_id.get() {
         return None;
@@ -31,10 +35,6 @@ pub async fn build_role_change_message(
     let admin_str = format_user(&admin, entry.user_id);
 
     let embed_author = build_embed_author_admin(&user, user_id, &admin);
-
-    let Some(changes) = entry.changes else {
-        return None;
-    };
 
     let added = changes
         .iter()

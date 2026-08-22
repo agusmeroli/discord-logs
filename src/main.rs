@@ -659,7 +659,9 @@ impl EventHandler for Handler {
 
         let msg = match &entry.action {
             Action::GuildUpdate => return,
-            Action::Channel(_) | Action::Thread(_) => messages::channel::build_channel_message(entry, user, &ctx).await,
+            Action::Channel(_) | Action::Thread(_) => {
+                messages::channel::build_channel_message(entry, user, &ctx).await
+            }
             Action::ChannelOverwrite(_) => {
                 messages::channel::build_permission_override_message(entry, user, &ctx).await
             }
@@ -678,16 +680,16 @@ impl EventHandler for Handler {
             Action::Member(MemberAction::BotAdd) => {
                 messages::member::build_bot_message(entry, user, &ctx).await
             }
+            Action::Sticker(_) => messages::sticker::build_sticker_message(entry, user, &ctx).await,
+            Action::Emoji(_) => messages::sticker::build_emoji_message(entry, user),
             Action::Member(MemberAction::Update) => return,
             Action::Webhook(_) => return,
-            Action::Emoji(_) => return,
-            Action::Message(_) => return,
             Action::Integration(_) => return,
-            Action::Sticker(_) => return,
             Action::ScheduledEvent(_) => return,
             Action::AutoMod(_) => return,
             Action::VoiceChannelStatus(_) => return,
 
+            Action::Message(_) => return,
             Action::Invite(_) => return,
             Action::StageInstance(_) => return,
             Action::CreatorMonetization(_) => return,
