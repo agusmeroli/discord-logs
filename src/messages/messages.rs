@@ -1,7 +1,10 @@
+use std::error::Error;
+
 use serenity::all::{
-    Channel, ChannelId, Colour, CreateEmbed, CreateEmbedAuthor, CreateMessage, GuildId, MessageId,
-    User, UserId,
+    Channel, ChannelId, Colour, CreateAttachment, CreateEmbed, CreateEmbedAuthor, CreateMessage,
+    GuildId, MessageId, User, UserId,
 };
+use serenity::futures::future::join_all;
 use time::OffsetDateTime;
 
 use crate::messages::format_time::format_time_diff;
@@ -62,7 +65,7 @@ pub fn build_edited_message(
     CreateMessage::new().embed(embed)
 }
 
-pub fn build_deleted_message(
+pub async fn build_deleted_message(
     user: Option<User>,
     user_id: Option<UserId>,
     deleter: Option<User>,
@@ -73,6 +76,7 @@ pub fn build_deleted_message(
     message_id: MessageId,
     content: Option<String>,
     attachments: Option<String>,
+    stickers: Option<String>,
     edits: i32,
 ) -> CreateMessage {
     let created = message_id.created_at().unix_timestamp();
@@ -123,10 +127,10 @@ pub fn build_deleted_message(
         .color(Colour::new(0xFF0000))
         .description(embed_description);
 
-    let mut message = CreateMessage::new();
+    let mut message = reupload_attachements(attachments).await;
 
-    if let Some(attachments) = attachments {
-        let attachments: Vec<&str> = attachments.split("\n").collect();
+    if let Some(stickers) = stickers {
+        let attachments: Vec<&str> = stickers.split("\n").collect();
 
         if !attachments.is_empty() {
             // First attachment goes in the main embed
@@ -143,6 +147,7 @@ pub fn build_deleted_message(
             return message;
         }
     }
+
     message.embed(embed)
 }
 
@@ -186,4 +191,39 @@ pub fn build_bulk_delete_message(
         .description(embed_description);
 
     CreateMessage::new().embed(embed)
+}
+
+async fn reupload_attachements(attachments: Option<String>) -> CreateMessage {
+    let mut builder = CreateMessage::new();
+
+    let Some(attachments) = attachments else {
+        return builder;
+    };
+
+    let download_futures = attachments.lines().map(|line| async move {
+        let (url, filename) = line.split_once('|').unwrap_or((line, "image.png"));
+
+        match download_single(url).await {
+            Ok(bytes) => Some((bytes, filename)),
+            Err(e) => {
+                log::error!("Failed to fetch URL {}: {}", url, e);
+                None
+            }
+        }
+    });
+
+    let results = join_all(download_futures).await;
+
+    for (bytes, filename) in results.into_iter().flatten() {
+        let attachment = CreateAttachment::bytes(bytes, filename);
+        builder = builder.add_file(attachment);
+    }
+
+    builder
+}
+async fn download_single(url: &str) -> Result<Vec<u8>, Box<dyn Error>> {
+    let response = reqwest::get(url).await?;
+    let bytes = response.bytes().await?;
+
+    Ok(bytes.to_vec())
 }

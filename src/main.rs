@@ -60,33 +60,36 @@ impl Handler {
         }
     }
 
-    fn format_attachments(&self, message: &Message) -> Option<String> {
+    fn format_stickers(&self, message: &Message) -> Option<String> {
+        // Actual stickers
         let mut urls: Vec<String> = message
-            .attachments
+            .sticker_items
             .iter()
-            .filter(|attachment| {
-                attachment
-                    .content_type
-                    .as_ref()
-                    .map(|ct| ct.starts_with("image/"))
-                    .unwrap_or(false)
-            })
-            .map(|attachment| attachment.proxy_url.clone())
+            .filter_map(|sticker| sticker.image_url())
             .collect();
 
+        // GIFs, only get the thumbnail url as it's static and can't be in any weird formats
         urls.extend(
             message
                 .embeds
                 .iter()
-                .filter_map(|embed| embed.url.as_ref().cloned()),
+                .filter_map(|embed| embed.thumbnail.as_ref())
+                .map(|thumbnail| thumbnail.url.clone()),
         );
 
-        urls.extend(
-            message
-                .sticker_items
-                .iter()
-                .filter_map(|sticker| sticker.image_url()),
-        );
+        if urls.is_empty() {
+            None
+        } else {
+            Some(urls.join("\n"))
+        }
+    }
+
+    fn format_attachments(&self, message: &Message) -> Option<String> {
+        let urls: Vec<String> = message
+            .attachments
+            .iter()
+            .map(|attachment| format!("{}|{}", attachment.url, attachment.filename))
+            .collect();
 
         if urls.is_empty() {
             return None;
@@ -369,17 +372,19 @@ impl EventHandler for Handler {
 
     async fn message(&self, _ctx: Context, message: Message) {
         let attachments_string = self.format_attachments(&message);
+        let stickers_string = self.format_stickers(&message);
 
         let content = message.content;
 
         if let Err(e) = sqlx::query(
-            "INSERT INTO messages (id, user_id, message, attachments) \
-             VALUES ($1, $2, $3, $4)",
+            "INSERT INTO messages (id, user_id, message, attachments, stickers) \
+             VALUES ($1, $2, $3, $4, $5)",
         )
         .bind(message.id.get() as i64)
         .bind(message.author.id.get() as i64)
         .bind(content)
         .bind(attachments_string)
+        .bind(stickers_string)
         .execute(&self.pool)
         .await
         {
@@ -482,7 +487,7 @@ impl EventHandler for Handler {
         };
 
         let row = sqlx::query(
-            "SELECT user_id, message, attachments, edits \
+            "SELECT user_id, message, attachments, stickers, edits \
              FROM messages \
              WHERE id = $1",
         )
@@ -494,17 +499,18 @@ impl EventHandler for Handler {
             None
         });
 
-        let (user_id, content, attachments, edits) = row
+        let (user_id, content, attachments, stickers, edits) = row
             .as_ref()
             .map(|r| {
                 (
                     r.get::<i64, _>(0),
                     Some(r.get::<String, _>(1)),
                     r.get::<Option<String>, _>(2),
-                    r.get::<i32, _>(3),
+                    r.get::<Option<String>, _>(3),
+                    r.get::<i32, _>(4),
                 )
             })
-            .unwrap_or((0, None, None, 0));
+            .unwrap_or((0, None, None, None, 0));
 
         let (mut user_id, mut user) = if user_id != 0 {
             let user_id = UserId::new(user_id as u64);
@@ -553,8 +559,10 @@ impl EventHandler for Handler {
             deleted_message_id,
             content,
             attachments,
+            stickers,
             edits,
-        );
+        )
+        .await;
 
         send_message(msg, &ctx, self.config.deleted_msg_channel).await;
     }
@@ -679,7 +687,7 @@ impl EventHandler for Handler {
             Action::ScheduledEvent(_) => return,
             Action::AutoMod(_) => return,
             Action::VoiceChannelStatus(_) => return,
-            
+
             Action::Invite(_) => return,
             Action::StageInstance(_) => return,
             Action::CreatorMonetization(_) => return,
