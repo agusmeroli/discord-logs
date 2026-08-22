@@ -67,7 +67,7 @@ pub fn format_channel(channel: &Option<Channel>, channel_id: ChannelId) -> Strin
     match channel {
         Some(Channel::Guild(gc)) => {
             if let Some(parent_id) = gc.parent_id {
-                format!("<#{parent_id}>*>*<#{channel_id}>({})", gc.name)
+                format!("<#{parent_id}>**>**<#{channel_id}>({})", gc.name)
             } else {
                 format!("<#{channel_id}>({})", gc.name)
             }
