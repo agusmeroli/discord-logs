@@ -9,6 +9,9 @@ edited_msg_distance = 10  # Minimum levenshtein distance between the old and new
 bulk_delete_min_length = 5 # Messages below this length won't be shown at all
 bulk_delete_max_length = 100 # Messages above this will be truncated with elipses...
 
+# max size of an attachement that will be reuploaded, in bytes
+max_upload_size = 6000000 # 6 MB
+
 # Delete old messages periodically for storage and for GDPR reasons
 # Set any of these to 0 to disable
 purge_interval_hours = 12 # Interval in hours when to execute purges. 
