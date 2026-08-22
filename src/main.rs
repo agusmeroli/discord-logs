@@ -88,6 +88,7 @@ impl Handler {
         let urls: Vec<String> = message
             .attachments
             .iter()
+            .filter(|attachement| attachement.size < self.config.max_upload_size)
             .map(|attachment| format!("{}|{}", attachment.url, attachment.filename))
             .collect();
 

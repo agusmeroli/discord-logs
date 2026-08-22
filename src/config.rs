@@ -13,6 +13,7 @@ pub struct Config {
     pub bulk_delete_max_length: usize,
     pub purge_interval_hours: u32,
     pub purge_retention_days: u32,
+    pub max_upload_size: u32,
     #[serde(default)]
     pub database_url: String,
 }
