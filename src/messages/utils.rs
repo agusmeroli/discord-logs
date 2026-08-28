@@ -1,5 +1,5 @@
 use serenity::all::{
-    Channel, ChannelId, Context, CreateEmbedAuthor, CreateMessage, Role, RoleId, User, UserId,
+    Change, Channel, ChannelId, Context, CreateEmbedAuthor, CreateMessage, Role, RoleId, User, UserId,
 };
 use tokio::time::{Duration, sleep};
 
@@ -159,4 +159,28 @@ macro_rules! format_boolean_change {
             _ => return None,
         }
     }};
+}
+
+
+#[macro_export]
+macro_rules! find_change {
+    ($changes:expr, $variant:path { $($field:ident),+ $(,)? }) => {
+        $changes.iter().find_map(|c| {
+            if let $variant { $($field),+ } = c {
+                Some(($($field),+))
+            } else {
+                None
+            }
+        })
+    };
+}
+
+pub fn get_name(changes: &[Change]) -> String {
+    let change = find_change!(changes, Change::Name { old, new });
+
+    match change {
+        Some((_, Some(new))) => new.clone(),
+        Some((Some(old), _)) => old.clone(),
+        _ => "unknown name".to_string()
+    }
 }

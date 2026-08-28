@@ -5,9 +5,7 @@ use serenity::all::{
 };
 
 use crate::{
-    format_boolean_change, format_numeric_change, format_numeric_change_operation,
-    format_string_change,
-    messages::utils::{build_embed_author, format_channel, format_user},
+    find_change, format_boolean_change, format_numeric_change, format_numeric_change_operation, format_string_change, messages::utils::{build_embed_author, format_channel, format_user},
 };
 
 pub async fn build_channel_message(
@@ -146,14 +144,7 @@ pub async fn build_permission_override_message(
         }
     };
 
-    let (new_allow, new_deny, old_allow, old_deny) = unwrap_changes(&changes);
-
-    let permission_changes_str = match (old_allow, old_deny) {
-        (Some(old_allow), Some(old_deny)) => {
-            format_permission_override_change(old_allow, new_allow, old_deny, new_deny)
-        }
-        _ => format_permission_override(new_allow, new_deny),
-    };
+    let permission_changes_str= unwrap_changes(&changes);
 
     let embed_author = build_embed_author(&user, entry.user_id);
     let message = format!(
@@ -342,40 +333,22 @@ fn perm_to_icon(allow: Permissions, deny: Permissions, perm: Permissions) -> &'s
 
 fn unwrap_changes(
     changes: &[Change],
-) -> (
-    Permissions,
-    Permissions,
-    Option<Permissions>,
-    Option<Permissions>,
-) {
-    let allow = changes.iter().find_map(|c| {
-        if let Change::Allow { old, new } = c {
-            Some((old, new))
-        } else {
-            None
-        }
-    });
+) -> String {
+    let allow = find_change!(changes, Change::Allow { old, new } );
+    let deny = find_change!(changes, Change::Deny { old, new} );
 
-    let deny = changes.iter().find_map(|c| {
-        if let Change::Deny { old, new } = c {
-            Some((old, new))
-        } else {
-            None
-        }
-    });
-
-    // If Allow has both old and new, Deny does too (per your assumption).
-    let is_change = allow.is_some_and(|(old, new)| old.is_some() && new.is_some());
+    let is_change = allow.is_some_and(|(old, new)| old.is_some() && new.is_some()) || 
+                          deny.is_some_and(|(old, new)| old.is_some() && new.is_some());
 
     if is_change {
-        let (allow_old, allow_new) = allow.unwrap();
+        let (allow_old, allow_new) = allow.unwrap_or((&None, &None));
         let (deny_old, deny_new) = deny.unwrap_or((&None, &None));
 
-        (
+        format_permission_override_change(
             allow_new.unwrap_or_else(Permissions::empty),
             deny_new.unwrap_or_else(Permissions::empty),
-            Some(allow_old.unwrap_or_else(Permissions::empty)),
-            Some(deny_old.unwrap_or_else(Permissions::empty)),
+            allow_old.unwrap_or_else(Permissions::empty),
+            deny_old.unwrap_or_else(Permissions::empty),
         )
     } else {
         let (allow_old, allow_new) = allow.unwrap_or((&None, &None));
@@ -384,6 +357,6 @@ fn unwrap_changes(
         let allow = allow_new.or(*allow_old).unwrap_or_else(Permissions::empty);
         let deny = deny_new.or(*deny_old).unwrap_or_else(Permissions::empty);
 
-        (allow, deny, None, None)
+        format_permission_override(allow, deny)
     }
 }
