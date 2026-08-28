@@ -337,13 +337,13 @@ fn unwrap_changes(
     let allow = find_change!(changes, Change::Allow { old, new } );
     let deny = find_change!(changes, Change::Deny { old, new} );
 
-    let is_change = allow.is_some_and(|(old, new)| old.is_some() && new.is_some()) || 
-                          deny.is_some_and(|(old, new)| old.is_some() && new.is_some());
+    let (allow_old, allow_new) = allow.unwrap_or((&None, &None));
+    let (deny_old, deny_new) = deny.unwrap_or((&None, &None));
+
+    let is_change = allow_old.is_some() && allow_new.is_some() ||
+                          deny_old.is_some() && !allow_new.is_some();
 
     if is_change {
-        let (allow_old, allow_new) = allow.unwrap_or((&None, &None));
-        let (deny_old, deny_new) = deny.unwrap_or((&None, &None));
-
         format_permission_override_change(
             allow_new.unwrap_or_else(Permissions::empty),
             deny_new.unwrap_or_else(Permissions::empty),
@@ -351,9 +351,6 @@ fn unwrap_changes(
             deny_old.unwrap_or_else(Permissions::empty),
         )
     } else {
-        let (allow_old, allow_new) = allow.unwrap_or((&None, &None));
-        let (deny_old, deny_new) = deny.unwrap_or((&None, &None));
-
         let allow = allow_new.or(*allow_old).unwrap_or_else(Permissions::empty);
         let deny = deny_new.or(*deny_old).unwrap_or_else(Permissions::empty);
 
