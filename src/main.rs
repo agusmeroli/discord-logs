@@ -330,7 +330,7 @@ impl EventHandler for Handler {
             None
         };
 
-        let msg = messages::invites::build_leave_message(user, last_join, admin, entry);
+        let msg = messages::invites::build_leave_message(user, last_join, join_amount, admin, entry);
         send_message(msg, &ctx, self.config.join_leave_channel).await;
     }
 
