@@ -5,7 +5,9 @@ use serenity::all::{
 };
 
 use crate::{
-    find_change, format_boolean_change, format_numeric_change, format_numeric_change_operation, format_string_change, messages::utils::{build_embed_author, format_channel, format_user},
+    find_change, format_boolean_change, format_numeric_change, format_numeric_change_operation,
+    format_string_change,
+    messages::utils::{build_embed_author, format_channel, format_user},
 };
 
 pub async fn build_channel_message(
@@ -144,7 +146,7 @@ pub async fn build_permission_override_message(
         }
     };
 
-    let permission_changes_str= unwrap_changes(&changes);
+    let permission_changes_str = unwrap_changes(&changes);
 
     let embed_author = build_embed_author(&user, entry.user_id);
     let message = format!(
@@ -331,17 +333,15 @@ fn perm_to_icon(allow: Permissions, deny: Permissions, perm: Permissions) -> &'s
     "`╱`"
 }
 
-fn unwrap_changes(
-    changes: &[Change],
-) -> String {
-    let allow = find_change!(changes, Change::Allow { old, new } );
-    let deny = find_change!(changes, Change::Deny { old, new} );
+fn unwrap_changes(changes: &[Change]) -> String {
+    let allow = find_change!(changes, Change::Allow { old, new });
+    let deny = find_change!(changes, Change::Deny { old, new });
 
     let (allow_old, allow_new) = allow.unwrap_or((&None, &None));
     let (deny_old, deny_new) = deny.unwrap_or((&None, &None));
 
-    let is_change = allow_old.is_some() && allow_new.is_some() ||
-                          deny_old.is_some() && !allow_new.is_some();
+    let is_change =
+        allow_old.is_some() && allow_new.is_some() || deny_old.is_some() && deny_new.is_some();
 
     if is_change {
         format_permission_override_change(
