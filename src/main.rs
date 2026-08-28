@@ -307,12 +307,20 @@ impl EventHandler for Handler {
     ) {
         log::debug!("Member {} left", user.name);
 
-        let last_join: Option<i64> =
-            sqlx::query_scalar("SELECT last_join FROM joined_member WHERE user_id = $1")
+        let result =
+            sqlx::query("SELECT last_join, join_amount FROM joined_member WHERE user_id = $1")
                 .bind(user.id.get() as i64)
                 .fetch_optional(&self.pool)
-                .await
-                .unwrap_or(None);
+                .await;
+        
+        let (last_join, join_amount)  = match result {
+            Ok(Some(row)) => (row.get::<Option<i64>, _>(0), row.get::<Option<i32>, _>(1)),
+            Ok(None) => (None, None),
+            Err(e) => {
+                log::error!("Failed to record member join: {}", e);
+                return;
+            }
+        };
 
         let entry = get_ban_or_kick_event(guild_id, user.id, &ctx, &self.pool).await;
 

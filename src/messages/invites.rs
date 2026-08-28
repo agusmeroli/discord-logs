@@ -122,6 +122,7 @@ pub fn build_join_message(
 pub fn build_leave_message(
     user: User,
     last_join: Option<i64>,
+    join_amount: Option<i32>,
     admin: Option<User>,
     entry: Option<AuditLogEntry>,
 ) -> CreateMessage {
@@ -163,16 +164,23 @@ pub fn build_leave_message(
             let formatted_member_age = format_time_diff((now - ts) as u64, 2);
             format!(
                 "**Joined:** <t:{ts}:f>\n\
-                    **Was member for:** `{formatted_member_age}`"
+                **Was member for:** `{formatted_member_age}`"
             )
         }
         None => "*no join record found.*".to_string(),
     };
 
+    let leave_count = if let Some(join_amount) = join_amount && join_amount > 1 {
+        let leave_amount = join_amount - 1;
+        format!("\n**Previously left** {leave_amount} **time{}**", if join_amount > 1 {"s"} else {""})
+    } else {
+        String::new()
+    };
+
     let embed_description = format!(
         "<@{user_id}> ({username})\
         {event_string}\n\n\
-         {membership}",
+        {membership}{leave_count}",
     );
 
     let avatar_url = user.face();
