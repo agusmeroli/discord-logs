@@ -7,7 +7,7 @@ use time::OffsetDateTime;
 
 use crate::datastructures::UsedInvite;
 use crate::messages::format_time::format_time_diff;
-use crate::messages::utils::{build_embed_author_admin, format_user};
+use crate::messages::utils::{build_embed_author_admin, format_user, get_reason};
 
 pub fn build_join_message(
     new_member: &Member,
@@ -87,9 +87,7 @@ pub fn build_join_message(
          {invite_info}",
     );
 
-    let avatar_url = new_member
-        .avatar_url()
-        .unwrap_or_else(|| new_member.user.face());
+    let avatar_url = new_member.face();
     let embed_author = CreateEmbedAuthor::new(username).icon_url(&avatar_url);
 
     let mut embed = CreateEmbed::new()
@@ -136,13 +134,7 @@ pub fn build_leave_message(
             _ => "Kicked",
         };
 
-        let reason = if let Some(reason) = &entry.reason
-            && !reason.is_empty()
-        {
-            reason.trim()
-        } else {
-            "*No reason stated*"
-        };
+        let reason = get_reason(&entry.reason);
 
         let admin_string = format_user(&admin, entry.user_id);
 

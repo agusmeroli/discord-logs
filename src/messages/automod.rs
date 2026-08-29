@@ -1,5 +1,3 @@
-use std::vec;
-
 use serenity::all::{
     AuditLogEntry, AutoModAction, Change, ChannelId, Colour, Context, CreateEmbed, CreateMessage,
     GuildId, RoleId, RuleId, User, audit_log::Action,
@@ -38,22 +36,6 @@ pub async fn build_automod_message(
     let user_str = format_user(&admin, entry.user_id);
 
     let rule_id = RuleId::new(target_id.get());
-
-    let entry2 = guild_id
-        .audit_logs(
-            &ctx,
-            Some(Action::AutoMod(AutoModAction::RuleUpdate)),
-            None,
-            None,
-            Some(3),
-        )
-        .await
-        .ok()
-        .unwrap();
-
-    let Some(changes) = &entry2.entries[1].changes else {
-        return None;
-    };
 
     let rule = guild_id.automod_rule(&ctx, rule_id).await.ok();
 

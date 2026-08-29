@@ -1,8 +1,14 @@
 use serenity::all::{
-    AuditLogEntry, Change, Colour, Context, CreateEmbed, CreateMessage, User, UserId,
+    AuditLogEntry, Change, Colour, Context, CreateEmbed, CreateMessage, Timestamp, User, UserId,
 };
 
-use crate::{find_change, messages::utils::{build_embed_author, build_embed_author_admin, format_user}};
+use crate::{
+    find_change,
+    messages::{
+        format_time::format_time_diff,
+        utils::{build_embed_author, build_embed_author_admin, format_user, get_reason},
+    },
+};
 
 pub async fn build_role_change_message(
     entry: AuditLogEntry,
@@ -137,7 +143,7 @@ pub async fn build_bot_message(
 
     let bot_id = UserId::new(target_id.get());
     let bot = bot_id.to_user(&ctx).await.ok();
-    
+
     let bot_str = format_user(&bot, bot_id);
     let avatar_url = bot.map_or(String::new(), |u| u.face());
 
@@ -167,18 +173,12 @@ pub async fn build_unban_message(
 
     let user_id = UserId::new(target_id.get());
     let user = user_id.to_user(&ctx).await.ok();
-    
+
     let user_str = format_user(&user, user_id);
     let embed_author = build_embed_author_admin(&user, user_id, &admin);
     let avatar_url = user.map_or(String::new(), |u| u.face());
-    
-    let reason = if let Some(reason) = entry.reason
-        && !reason.is_empty()
-    {
-        reason.trim().to_string()
-    } else {
-        "*No reason stated".to_string()
-    };
+
+    let reason = get_reason(&entry.reason);
 
     let message = format!("{admin_str} **unbanned** {user_str}\n**Reason:** {reason}");
 
@@ -192,4 +192,178 @@ pub async fn build_unban_message(
     Some(CreateMessage::new().embed(embed))
 }
 
+pub async fn build_member_update_message(
+    entry: AuditLogEntry,
+    admin: Option<User>,
+    ctx: &Context,
+) -> Option<CreateMessage> {
+    let Some(target_id) = entry.target_id else {
+        return None;
+    };
 
+    let Some(changes) = entry.changes else {
+        return None;
+    };
+
+    // If self-action, ignore admin, just show self-change
+    let (admin_string, admin) = if target_id.get() == entry.user_id.get() {
+        (None, None)
+    } else {
+        (Some(format_user(&admin, entry.user_id)), admin)
+    };
+
+    let user_id = UserId::new(target_id.get());
+    let user = user_id.to_user(&ctx).await.ok();
+    let user_string = format_user(&user, user_id);
+
+    let embed: CreateEmbed = if changes.len() == 1 {
+        match &changes[0] {
+            Change::Mute { old, new } => {
+                build_mute_message("muted", old, new, user_string, admin_string)
+            }
+            Change::Deaf { old, new } => {
+                build_mute_message("deafened", old, new, user_string, admin_string)
+            }
+            Change::CommunicationDisabledUntil { old, new } => build_timeout_message(
+                old,
+                new,
+                entry.id.created_at(),
+                user_string,
+                admin_string.unwrap_or(String::new()),
+                entry.reason,
+            ),
+            Change::Nick { old, new } => {
+                build_username_change(old, new, user_string, admin_string, &user)
+            }
+            _ => CreateEmbed::new(),
+        }
+    } else {
+        CreateEmbed::new()
+    };
+
+    let embed_author = build_embed_author_admin(&user, user_id, &admin);
+    let avatar_url = user.map_or(String::new(), |u| u.face());
+
+    Some(CreateMessage::new().embed(embed.thumbnail(avatar_url).author(embed_author)))
+}
+
+fn build_timeout_message(
+    old: &Option<Timestamp>,
+    new: &Option<Timestamp>,
+    now: Timestamp,
+    user_string: String,
+    admin_string: String,
+    reason: Option<String>,
+) -> CreateEmbed {
+    let now = now.unix_timestamp();
+
+    let (description, title, colour) = match (old, new) {
+        (_, Some(until)) => {
+            let reason = get_reason(&reason);
+
+            let until = until.unix_timestamp();
+            let time_remaining = until - now;
+            let formatted_time = format_time_diff(time_remaining as u64, 3);
+
+            let description = format!(
+                "{admin_string} **timed out** {user_string}**:**\n\n\
+                                                **Duration:** `{formatted_time}`\n\
+                                                **Expires:** <t:{until}:R>\n\
+                                                **Reason:** {reason}"
+            );
+            (description, "MEMBER TIMED-OUT", Colour::new(0x9C59B6))
+        }
+        (Some(until), _) => {
+            let time_remaining = until.unix_timestamp() - now;
+            let formatted_time = format_time_diff(time_remaining as u64, 3);
+
+            let description = format!(
+                "{admin_string} **removed time-out from** {user_string}**:**\n\n\
+                                                **Time remaining:** `{formatted_time}`"
+            );
+            (description, "TIMEOUT REMOVED", Colour::new(0xFF0000))
+        }
+        // should not be reached but it's here anyways
+        _ => (
+            "timeout action".to_string(),
+            "TIMEOUT ACTION",
+            Colour::new(0),
+        ),
+    };
+
+    CreateEmbed::new()
+        .description(description)
+        .title(title)
+        .color(colour)
+}
+
+fn build_mute_message(
+    action: &str,
+    old: &Option<bool>,
+    new: &Option<bool>,
+    user_string: String,
+    admin_string: Option<String>,
+) -> CreateEmbed {
+    let (action, colour) = match (old, new) {
+        (_, Some(true)) => (format!("{action}"), Colour::new(0xFF0000)),
+        (Some(true), _) => (format!("un-{action}"), Colour::new(0x00FF00)),
+        // should not be reached but it's here anyways
+        _ => (format!("{action} action"), Colour::new(0)),
+    };
+
+    let title = format!("MEMBER {action} FROM VC").to_uppercase();
+
+    let description = match admin_string {
+        Some(admin_string) => format!("{admin_string} **{action}** {user_string}"),
+        _ => format!("{user_string} **{action} themselves**"),
+    };
+
+    CreateEmbed::new()
+        .description(description)
+        .color(colour)
+        .title(title)
+}
+
+fn build_username_change(
+    old: &Option<String>,
+    new: &Option<String>,
+    user_string: String,
+    admin_string: Option<String>,
+    user: &Option<User>,
+) -> CreateEmbed {
+    let description = match admin_string {
+        Some(admin_string) => format!("{admin_string} **changed nickname for** {user_string}**:**"),
+        _ => format!("{user_string} **changed their nickname:**"),
+    };
+
+    let mut embed = CreateEmbed::new()
+        .description(description)
+        .title("MEMBER NICKNAME UPDATE")
+        .color(Colour::new(0xFFAA00));
+
+    let globalname = user
+        .as_ref()
+        .map(|user| user.global_name.as_ref().unwrap_or(&user.name));
+
+    // only show globalname if we are not showing it later
+    if old.is_some()
+        && new.is_some()
+        && let Some(globalname) = globalname
+    {
+        embed = embed.field("Global name:", globalname, false);
+    }
+
+    if let Some(old) = old {
+        embed = embed.field("Old:", old, true);
+    } else if let Some(globalname) = globalname {
+        embed = embed.field("Old (Globalname):", globalname, true);
+    }
+
+    if let Some(new) = new {
+        embed = embed.field("New:", new, true);
+    } else if let Some(globalname) = globalname {
+        embed = embed.field("New (Globalname):", globalname, true);
+    }
+
+    embed
+}

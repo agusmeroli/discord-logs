@@ -686,6 +686,9 @@ impl EventHandler for Handler {
             Action::Member(MemberAction::RoleUpdate) => {
                 messages::member::build_role_change_message(entry, user, &ctx).await
             }
+            Action::Member(MemberAction::Update) => {
+                messages::member::build_member_update_message(entry, user, &ctx).await
+            }
             Action::Member(MemberAction::BotAdd) => {
                 messages::member::build_bot_message(entry, user, &ctx).await
             }
@@ -694,14 +697,14 @@ impl EventHandler for Handler {
             }
             Action::Sticker(_) => messages::sticker::build_sticker_message(entry, user, &ctx).await,
             Action::Emoji(_) => messages::sticker::build_emoji_message(entry, user),
-            Action::Member(MemberAction::Update) => return,
+
+            // TODO
             Action::Webhook(_) => return,
             Action::Integration(_) => return,
             Action::ScheduledEvent(_) => return,
             Action::VoiceChannelStatus(_) => return,
 
             Action::Message(_) => return,
-            Action::Invite(_) => return,
             Action::StageInstance(_) => return,
             Action::CreatorMonetization(_) => return,
             _ => return,
