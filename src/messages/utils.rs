@@ -1,5 +1,6 @@
 use serenity::all::{
-    Change, Channel, ChannelId, Context, CreateEmbedAuthor, CreateMessage, Role, RoleId, User, UserId,
+    Change, Channel, ChannelId, Context, CreateEmbedAuthor, CreateMessage, Role, RoleId, User,
+    UserId,
 };
 use tokio::time::{Duration, sleep};
 
@@ -161,26 +162,33 @@ macro_rules! format_boolean_change {
     }};
 }
 
-
 #[macro_export]
 macro_rules! find_change {
-    ($changes:expr, $variant:path { $($field:ident),+ $(,)? }) => {
-        $changes.iter().find_map(|c| {
-            if let $variant { $($field),+ } = c {
-                Some(($($field),+))
-            } else {
-                None
-            }
-        })
+    ($changes:expr, $pattern:path) => {
+        $changes.iter().find(|c| matches!(c, $pattern { .. }))
     };
 }
 
-pub fn get_name(changes: &[Change]) -> String {
-    let change = find_change!(changes, Change::Name { old, new });
+#[macro_export]
+macro_rules! unwrap_change {
+    ($change:expr, $variant:path) => {
+        match $change {
+            Some($variant { old, new }) => (old, new),
+            _ => (&None, &None),
+        }
+    };
+}
 
+pub fn get_name(change: Option<&Change>) -> String {
     match change {
-        Some((_, Some(new))) => new.clone(),
-        Some((Some(old), _)) => old.clone(),
-        _ => "unknown name".to_string()
+        Some(Change::Name {
+            old: _,
+            new: Some(new),
+        }) => new.clone(),
+        Some(Change::Name {
+            old: Some(old),
+            new: _,
+        }) => old.clone(),
+        _ => "*unknown name*".to_string(),
     }
 }

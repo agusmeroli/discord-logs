@@ -312,8 +312,8 @@ impl EventHandler for Handler {
                 .bind(user.id.get() as i64)
                 .fetch_optional(&self.pool)
                 .await;
-        
-        let (last_join, join_amount)  = match result {
+
+        let (last_join, join_amount) = match result {
             Ok(Some(row)) => (row.get::<Option<i64>, _>(0), row.get::<Option<i32>, _>(1)),
             Ok(None) => (None, None),
             Err(e) => {
@@ -330,7 +330,8 @@ impl EventHandler for Handler {
             None
         };
 
-        let msg = messages::invites::build_leave_message(user, last_join, join_amount, admin, entry);
+        let msg =
+            messages::invites::build_leave_message(user, last_join, join_amount, admin, entry);
         send_message(msg, &ctx, self.config.join_leave_channel).await;
     }
 

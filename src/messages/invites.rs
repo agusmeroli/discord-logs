@@ -170,9 +170,14 @@ pub fn build_leave_message(
         None => "*no join record found.*".to_string(),
     };
 
-    let leave_count = if let Some(join_amount) = join_amount && join_amount > 1 {
+    let leave_count = if let Some(join_amount) = join_amount
+        && join_amount > 1
+    {
         let leave_amount = join_amount - 1;
-        format!("\n**Previously left** {leave_amount} **time{}**", if join_amount > 1 {"s"} else {""})
+        format!(
+            "\n**Previously left** {leave_amount} **time{}**",
+            if join_amount > 1 { "s" } else { "" }
+        )
     } else {
         String::new()
     };

@@ -4,8 +4,8 @@ use serenity::all::{
 };
 
 use crate::{
-    format_string_change,
-    messages::utils::{build_embed_author, format_user},
+    find_change, format_string_change,
+    messages::utils::{build_embed_author, format_user, get_name},
 };
 
 pub async fn build_sticker_message(
@@ -90,24 +90,14 @@ pub fn build_emoji_message(entry: AuditLogEntry, user: Option<User>) -> Option<C
         }
     };
 
-    let Some(name_change) = changes
-        .iter()
-        .find(|&x| matches!(x, Change::Name { old: _, new: _ }))
-    else {
+    let name_change = find_change!(changes, Change::Name);
+
+    let emoji_name = get_name(name_change);
+
+    let Some(name_change) = name_change else {
         return None;
     };
-
-    let emoji_name = match name_change {
-        Change::Name {
-            old: _,
-            new: Some(new),
-        } => new,
-        Change::Name {
-            old: Some(old),
-            new: _,
-        } => old,
-        _ => return None,
-    };
+    let name_line = build_sticker_change_line(&name_change).unwrap_or(String::new());
 
     // only show emoji if it's not a delete message
     let emoji_mention = if let Action::Emoji(EmojiAction::Delete) = entry.action {
@@ -116,13 +106,11 @@ pub fn build_emoji_message(entry: AuditLogEntry, user: Option<User>) -> Option<C
         format!("# - <:{emoji_name}:{emoji_id}>")
     };
 
-    let name_line = build_sticker_change_line(&name_change).unwrap_or(String::new());
-
     let embed_author = build_embed_author(&user, entry.user_id);
     let message = format!(
         "{user_str} **{action} an emoji**: \n\
-                                {name_line}\n\
-                            {emoji_mention}"
+         {name_line}\n\
+         {emoji_mention}"
     );
     let title = format!("EMOJI {action}").to_uppercase();
 
