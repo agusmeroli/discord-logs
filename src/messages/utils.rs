@@ -179,8 +179,8 @@ macro_rules! unwrap_change {
     };
 }
 
-pub fn get_name(change: Option<&Change>) -> String {
-    match change {
+pub fn get_name(change: Option<&Change>) -> Option<String> {
+    Some(match change {
         Some(Change::Name {
             old: _,
             new: Some(new),
@@ -189,6 +189,6 @@ pub fn get_name(change: Option<&Change>) -> String {
             old: Some(old),
             new: _,
         }) => old.clone(),
-        _ => "*unknown name*".to_string(),
-    }
+        _ => return None,
+    })
 }

@@ -1,3 +1,4 @@
+pub mod automod;
 pub mod channel;
 pub mod format_time;
 pub mod invites;

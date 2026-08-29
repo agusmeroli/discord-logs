@@ -689,13 +689,15 @@ impl EventHandler for Handler {
             Action::Member(MemberAction::BotAdd) => {
                 messages::member::build_bot_message(entry, user, &ctx).await
             }
+            Action::AutoMod(_) => {
+                messages::automod::build_automod_message(entry, user, guild_id, &ctx).await
+            }
             Action::Sticker(_) => messages::sticker::build_sticker_message(entry, user, &ctx).await,
             Action::Emoji(_) => messages::sticker::build_emoji_message(entry, user),
             Action::Member(MemberAction::Update) => return,
             Action::Webhook(_) => return,
             Action::Integration(_) => return,
             Action::ScheduledEvent(_) => return,
-            Action::AutoMod(_) => return,
             Action::VoiceChannelStatus(_) => return,
 
             Action::Message(_) => return,

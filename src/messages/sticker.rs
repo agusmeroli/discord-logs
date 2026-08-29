@@ -92,12 +92,12 @@ pub fn build_emoji_message(entry: AuditLogEntry, user: Option<User>) -> Option<C
 
     let name_change = find_change!(changes, Change::Name);
 
-    let emoji_name = get_name(name_change);
+    let emoji_name = get_name(name_change).unwrap_or("unknown_name".to_string());
 
     let Some(name_change) = name_change else {
         return None;
     };
-    let name_line = build_sticker_change_line(&name_change).unwrap_or(String::new());
+    let name_line = build_sticker_change_line(name_change).unwrap_or(String::new());
 
     // only show emoji if it's not a delete message
     let emoji_mention = if let Action::Emoji(EmojiAction::Delete) = entry.action {
