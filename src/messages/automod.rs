@@ -114,24 +114,24 @@ fn build_automod_change_line(change: &Change) -> Option<String> {
         Change::ExemptRoles { old, new } => {
             let mut res = Vec::new();
             if let Some(old) = old {
-                res.extend(format_role_list("Removed exempt roles:", old));
+                res.extend(format_role_list("Removed exempt roles", old));
             }
             if let Some(new) = new {
-                res.extend(format_role_list("Added exempt roles:", new));
+                res.extend(format_role_list("Added exempt roles", new));
             }
             res.join("\n")
         }
         Change::ExemptChannels { old, new } => {
             let mut res = Vec::new();
             if let Some(old) = old {
-                res.extend(format_channel_list("Removed exempt channels:", old));
+                res.extend(format_channel_list("Removed exempt channels", old));
             }
             if let Some(new) = new {
-                res.extend(format_channel_list("Added exempt channels:", new));
+                res.extend(format_channel_list("Added exempt channels", new));
             }
             res.join("\n")
         }
-        // todo
+        // TODO
         //Change::Actions { old, new } => return None,
         _ => return None,
     })
@@ -162,7 +162,7 @@ fn format_role_list(label: &str, roles: &Vec<RoleId>) -> Vec<String> {
     res.push(format!("- **{label}:**"));
 
     for role in roles {
-        res.push(format!("  - <@{role}>"));
+        res.push(format!("  - <@!{role}>"));
     }
     res
 }
