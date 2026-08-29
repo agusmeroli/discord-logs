@@ -3,7 +3,8 @@ use serenity::all::{
 };
 
 use crate::{
-    find_change,
+    find_change, format_boolean_change, format_numeric_change, format_numeric_change_operation,
+    format_string_change,
     messages::{
         format_time::format_time_diff,
         utils::{build_embed_author, build_embed_author_admin, format_user, get_reason},
@@ -235,16 +236,34 @@ pub async fn build_member_update_message(
             Change::Nick { old, new } => {
                 build_username_change(old, new, user_string, admin_string, &user)
             }
-            _ => CreateEmbed::new(),
+            _ => format_member_changes(changes, user_string, admin_string.unwrap_or(String::new())),
         }
     } else {
-        CreateEmbed::new()
+        format_member_changes(changes, user_string, admin_string.unwrap_or(String::new()))
     };
 
     let embed_author = build_embed_author_admin(&user, user_id, &admin);
     let avatar_url = user.map_or(String::new(), |u| u.face());
 
     Some(CreateMessage::new().embed(embed.thumbnail(avatar_url).author(embed_author)))
+}
+
+fn format_member_changes(
+    changes: Vec<Change>,
+    user_string: String,
+    admin_string: String,
+) -> CreateEmbed {
+    let changes = changes
+        .iter()
+        .filter_map(format_member_change)
+        .collect::<Vec<_>>()
+        .join("\n");
+    let description = format!("{admin_string} **updated member** {user_string}**:**\n\n{changes}");
+
+    CreateEmbed::new()
+        .description(description)
+        .title("MEMBER UPDATED")
+        .color(Colour::new(0xFFAA00))
 }
 
 fn build_timeout_message(
@@ -279,7 +298,7 @@ fn build_timeout_message(
 
             let description = format!(
                 "{admin_string} **removed time-out from** {user_string}**:**\n\n\
-                                                **Time remaining:** `{formatted_time}`"
+                **Time left before removal:** `{formatted_time}`"
             );
             (description, "TIMEOUT REMOVED", Colour::new(0xFF0000))
         }
@@ -366,4 +385,21 @@ fn build_username_change(
     }
 
     embed
+}
+
+fn format_member_change(change: &Change) -> Option<String> {
+    Some(match change {
+        Change::Mute { old, new } => format_boolean_change!("Muted", old, new),
+        Change::Deaf { old, new } => format_boolean_change!("Deafened", old, new),
+        Change::Nick { old, new } => format_string_change!("Nickname", old, new),
+        Change::CommunicationDisabledUntil { old, new } => match (old, new) {
+            (Some(old), Some(new)) => {
+                format!("- **Timeout until:** <t:{old}:R> ➜ <t:{new}:R>").into()
+            }
+            (None, Some(new)) => format!("- **Timeout until:** <t:{new}:R>").into(),
+            (Some(old), None) => format!("- **Timeout until:** *was* <t:{old}:R>").into(),
+            _ => return None,
+        },
+        _ => return None,
+    })
 }
