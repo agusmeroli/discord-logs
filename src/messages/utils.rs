@@ -1,5 +1,6 @@
 use serenity::all::{
-    Channel, ChannelId, Context, CreateEmbedAuthor, CreateMessage, Role, RoleId, User, UserId,
+    Change, Channel, ChannelId, Context, CreateEmbedAuthor, CreateMessage, Role, RoleId, User,
+    UserId,
 };
 use tokio::time::{Duration, sleep};
 
@@ -36,12 +37,12 @@ pub fn build_embed_author_admin(
 ) -> CreateEmbedAuthor {
     match (user, admin) {
         (Some(user), Some(admin)) => {
-            let avatar_url = user.avatar_url().unwrap_or_else(|| user.face());
+            let avatar_url = admin.face();
             let embed_author = format!("{} ➜ {}", &admin.name, &user.name);
             return CreateEmbedAuthor::new(embed_author).icon_url(avatar_url);
         }
         (None, Some(admin)) => {
-            let avatar_url = admin.avatar_url().unwrap_or_else(|| admin.face());
+            let avatar_url = admin.face();
             let embed_author = format!("{} ➜ {}", &admin.name, user_id);
             CreateEmbedAuthor::new(embed_author).icon_url(avatar_url)
         }
@@ -145,6 +146,16 @@ macro_rules! format_string_change {
     }};
 }
 
+pub fn get_reason(reason: &Option<String>) -> &str {
+    if let Some(reason) = reason
+        && !reason.is_empty()
+    {
+        reason.trim()
+    } else {
+        "*No reason stated*"
+    }
+}
+
 #[macro_export]
 macro_rules! format_boolean_change {
     ($name:expr, $old:expr, $new:expr) => {{
@@ -159,4 +170,35 @@ macro_rules! format_boolean_change {
             _ => return None,
         }
     }};
+}
+
+#[macro_export]
+macro_rules! find_change {
+    ($changes:expr, $pattern:path) => {
+        $changes.iter().find(|c| matches!(c, $pattern { .. }))
+    };
+}
+
+#[macro_export]
+macro_rules! unwrap_change {
+    ($change:expr, $variant:path) => {
+        match $change {
+            Some($variant { old, new }) => (old, new),
+            _ => (&None, &None),
+        }
+    };
+}
+
+pub fn get_name(change: Option<&Change>) -> Option<String> {
+    Some(match change {
+        Some(Change::Name {
+            old: _,
+            new: Some(new),
+        }) => new.clone(),
+        Some(Change::Name {
+            old: Some(old),
+            new: _,
+        }) => old.clone(),
+        _ => return None,
+    })
 }

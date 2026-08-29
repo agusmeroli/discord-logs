@@ -307,12 +307,20 @@ impl EventHandler for Handler {
     ) {
         log::debug!("Member {} left", user.name);
 
-        let last_join: Option<i64> =
-            sqlx::query_scalar("SELECT last_join FROM joined_member WHERE user_id = $1")
+        let result =
+            sqlx::query("SELECT last_join, join_amount FROM joined_member WHERE user_id = $1")
                 .bind(user.id.get() as i64)
                 .fetch_optional(&self.pool)
-                .await
-                .unwrap_or(None);
+                .await;
+
+        let (last_join, join_amount) = match result {
+            Ok(Some(row)) => (row.get::<Option<i64>, _>(0), row.get::<Option<i32>, _>(1)),
+            Ok(None) => (None, None),
+            Err(e) => {
+                log::error!("Failed to record member join: {}", e);
+                return;
+            }
+        };
 
         let entry = get_ban_or_kick_event(guild_id, user.id, &ctx, &self.pool).await;
 
@@ -322,7 +330,8 @@ impl EventHandler for Handler {
             None
         };
 
-        let msg = messages::invites::build_leave_message(user, last_join, admin, entry);
+        let msg =
+            messages::invites::build_leave_message(user, last_join, join_amount, admin, entry);
         send_message(msg, &ctx, self.config.join_leave_channel).await;
     }
 
@@ -659,7 +668,9 @@ impl EventHandler for Handler {
 
         let msg = match &entry.action {
             Action::GuildUpdate => return,
-            Action::Channel(_) | Action::Thread(_) => messages::channel::build_channel_message(entry, user, &ctx).await,
+            Action::Channel(_) | Action::Thread(_) => {
+                messages::channel::build_channel_message(entry, user, &ctx).await
+            }
             Action::ChannelOverwrite(_) => {
                 messages::channel::build_permission_override_message(entry, user, &ctx).await
             }
@@ -675,20 +686,25 @@ impl EventHandler for Handler {
             Action::Member(MemberAction::RoleUpdate) => {
                 messages::member::build_role_change_message(entry, user, &ctx).await
             }
+            Action::Member(MemberAction::Update) => {
+                messages::member::build_member_update_message(entry, user, &ctx).await
+            }
             Action::Member(MemberAction::BotAdd) => {
                 messages::member::build_bot_message(entry, user, &ctx).await
             }
-            Action::Member(MemberAction::Update) => return,
+            Action::AutoMod(_) => {
+                messages::automod::build_automod_message(entry, user, guild_id, &ctx).await
+            }
+            Action::Sticker(_) => messages::sticker::build_sticker_message(entry, user, &ctx).await,
+            Action::Emoji(_) => messages::sticker::build_emoji_message(entry, user),
+
+            // TODO
             Action::Webhook(_) => return,
-            Action::Emoji(_) => return,
-            Action::Message(_) => return,
             Action::Integration(_) => return,
-            Action::Sticker(_) => return,
             Action::ScheduledEvent(_) => return,
-            Action::AutoMod(_) => return,
             Action::VoiceChannelStatus(_) => return,
 
-            Action::Invite(_) => return,
+            Action::Message(_) => return,
             Action::StageInstance(_) => return,
             Action::CreatorMonetization(_) => return,
             _ => return,

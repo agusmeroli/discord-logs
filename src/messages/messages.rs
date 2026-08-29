@@ -201,7 +201,7 @@ async fn reupload_attachements(attachments: Option<String>) -> CreateMessage {
     };
 
     let download_futures = attachments.lines().map(|line| async move {
-        let (url, filename) = line.split_once('|').unwrap_or((line, "image.png"));
+        let (url, filename) = line.split_once('|').unwrap_or((line, "unknown_attachment"));
 
         match download_single(url).await {
             Ok(bytes) => Some((bytes, filename)),

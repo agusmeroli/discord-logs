@@ -7,7 +7,7 @@ use time::OffsetDateTime;
 
 use crate::datastructures::UsedInvite;
 use crate::messages::format_time::format_time_diff;
-use crate::messages::utils::{build_embed_author_admin, format_user};
+use crate::messages::utils::{build_embed_author_admin, format_user, get_reason};
 
 pub fn build_join_message(
     new_member: &Member,
@@ -87,9 +87,7 @@ pub fn build_join_message(
          {invite_info}",
     );
 
-    let avatar_url = new_member
-        .avatar_url()
-        .unwrap_or_else(|| new_member.user.face());
+    let avatar_url = new_member.face();
     let embed_author = CreateEmbedAuthor::new(username).icon_url(&avatar_url);
 
     let mut embed = CreateEmbed::new()
@@ -122,6 +120,7 @@ pub fn build_join_message(
 pub fn build_leave_message(
     user: User,
     last_join: Option<i64>,
+    join_amount: Option<i32>,
     admin: Option<User>,
     entry: Option<AuditLogEntry>,
 ) -> CreateMessage {
@@ -135,13 +134,7 @@ pub fn build_leave_message(
             _ => "Kicked",
         };
 
-        let reason = if let Some(reason) = &entry.reason
-            && !reason.is_empty()
-        {
-            reason.trim()
-        } else {
-            "*No reason stated*"
-        };
+        let reason = get_reason(&entry.reason);
 
         let admin_string = format_user(&admin, entry.user_id);
 
@@ -163,16 +156,28 @@ pub fn build_leave_message(
             let formatted_member_age = format_time_diff((now - ts) as u64, 2);
             format!(
                 "**Joined:** <t:{ts}:f>\n\
-                    **Was member for:** `{formatted_member_age}`"
+                **Was member for:** `{formatted_member_age}`"
             )
         }
         None => "*no join record found.*".to_string(),
     };
 
+    let leave_count = if let Some(join_amount) = join_amount
+        && join_amount > 1
+    {
+        let leave_amount = join_amount - 1;
+        format!(
+            "\n**Previously left** {leave_amount} **time{}**",
+            if join_amount > 1 { "s" } else { "" }
+        )
+    } else {
+        String::new()
+    };
+
     let embed_description = format!(
         "<@{user_id}> ({username})\
         {event_string}\n\n\
-         {membership}",
+        {membership}{leave_count}",
     );
 
     let avatar_url = user.face();
