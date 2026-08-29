@@ -2,7 +2,7 @@ use serenity::all::{
     AuditLogEntry, Change, Colour, Context, CreateEmbed, CreateMessage, User, UserId,
 };
 
-use crate::messages::utils::{build_embed_author, build_embed_author_admin, format_user};
+use crate::{find_change, messages::utils::{build_embed_author, build_embed_author_admin, format_user}};
 
 pub async fn build_role_change_message(
     entry: AuditLogEntry,
@@ -35,14 +35,10 @@ pub async fn build_role_change_message(
     let admin_str = format_user(&admin, entry.user_id);
 
     let embed_author = build_embed_author_admin(&user, user_id, &admin);
+    let avatar_url = user.map_or(String::new(), |u| u.face());
 
-    let added = changes
-        .iter()
-        .find(|&x| matches!(x, Change::RolesAdded { old: _, new: _ }));
-
-    let removed = changes
-        .iter()
-        .find(|&x| matches!(x, Change::RolesRemove { old: _, new: _ }));
+    let added = find_change!(changes, Change::RolesAdded);
+    let removed = find_change!(changes, Change::RolesRemove);
 
     let (title, header, colour) = match (added, removed) {
         (Some(_), None) => (
@@ -92,7 +88,8 @@ pub async fn build_role_change_message(
         .title(title)
         .author(embed_author)
         .color(colour)
-        .description(message);
+        .description(message)
+        .thumbnail(avatar_url);
 
     Some(CreateMessage::new().embed(embed))
 }
@@ -140,23 +137,20 @@ pub async fn build_bot_message(
 
     let bot_id = UserId::new(target_id.get());
     let bot = bot_id.to_user(&ctx).await.ok();
-
+    
     let bot_str = format_user(&bot, bot_id);
+    let avatar_url = bot.map_or(String::new(), |u| u.face());
 
     let embed_author = build_embed_author(&user, entry.user_id);
 
     let message = format!("{user_str} **added bot** {bot_str}");
 
-    let mut embed = CreateEmbed::new()
+    let embed = CreateEmbed::new()
         .title("BOT ADDED")
         .author(embed_author)
         .color(Colour::new(0x00FF00))
-        .description(message);
-
-    if let Some(bot) = &bot {
-        let avatar_url = bot.avatar_url().unwrap_or_else(|| bot.face());
-        embed = embed.thumbnail(avatar_url);
-    }
+        .description(message)
+        .thumbnail(avatar_url);
 
     Some(CreateMessage::new().embed(embed))
 }
@@ -173,10 +167,11 @@ pub async fn build_unban_message(
 
     let user_id = UserId::new(target_id.get());
     let user = user_id.to_user(&ctx).await.ok();
+    
     let user_str = format_user(&user, user_id);
-
     let embed_author = build_embed_author_admin(&user, user_id, &admin);
-
+    let avatar_url = user.map_or(String::new(), |u| u.face());
+    
     let reason = if let Some(reason) = entry.reason
         && !reason.is_empty()
     {
@@ -191,7 +186,10 @@ pub async fn build_unban_message(
         .title("MEMBER UNBANNED")
         .author(embed_author)
         .color(Colour::new(0x00FF00))
-        .description(message);
+        .description(message)
+        .thumbnail(avatar_url);
 
     Some(CreateMessage::new().embed(embed))
 }
+
+
