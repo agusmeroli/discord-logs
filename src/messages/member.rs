@@ -3,7 +3,7 @@ use serenity::all::{
 };
 
 use crate::{
-    find_change, format_boolean_change, format_numeric_change, format_numeric_change_operation,
+    find_change, format_boolean_change,
     format_string_change,
     messages::{
         format_time::format_time_diff,
