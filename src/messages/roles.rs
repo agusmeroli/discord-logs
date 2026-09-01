@@ -4,7 +4,8 @@ use serenity::all::{
 };
 
 use crate::{
-    format_boolean_change, format_numeric_change_operation, format_string_change,
+    format_boolean_change, format_generic_change, format_numeric_change_operation,
+    format_string_change,
     messages::utils::{build_embed_author, format_role, format_user},
 };
 
@@ -19,10 +20,14 @@ pub async fn build_role_message(
         return None;
     };
 
-    let user_str = format_user(&user, entry.user_id);
+    let Some(admin_id) = entry.user_id else {
+        return None;
+    };
+
+    let user_str = format_user(&user, admin_id);
 
     let role_id = RoleId::new(target_id.get());
-    let role = guild_id.role(&ctx, role_id).await.ok();
+    let role = guild_id.role(&ctx.http, role_id).await.ok();
     let role_str = format_role(&role, role_id);
 
     let (action, colour) = match entry.action {
@@ -38,17 +43,14 @@ pub async fn build_role_message(
         }
     };
 
-    let changes = if let Some(changes) = entry.changes {
-        changes
-            .iter()
-            .filter_map(build_role_change_line)
-            .collect::<Vec<_>>()
-            .join("\n")
-    } else {
-        String::new()
-    };
+    let changes = entry
+        .changes
+        .iter()
+        .filter_map(build_role_change_line)
+        .collect::<Vec<_>>()
+        .join("\n");
 
-    let embed_author = build_embed_author(&user, entry.user_id);
+    let embed_author = build_embed_author(&user, admin_id);
     let message = format!("{user_str} **{action} role** {role_str}\n\n{changes}");
     let title = format!("ROLE {}", action.to_uppercase());
 
@@ -69,7 +71,7 @@ fn build_role_change_line(change: &Change) -> Option<String> {
         Change::UnicodeEmoji { old, new } => format_string_change!("Icon", old, new),
         // TODO: Support Colors when it will be updated
         Change::Color { old, new } => {
-            format_numeric_change_operation!("Colour", "", old, new, |c| format!("#{:06X}", c))
+            format_generic_change!("Colour", old, new, |c| format!("#{:06X}", c))
         }
 
         Change::Permissions { old, new } => match (old, new) {

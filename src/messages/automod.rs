@@ -19,7 +19,7 @@ pub async fn build_automod_message(
         return None;
     };
 
-    let Some(changes) = entry.changes else {
+    let Some(user_id) = entry.user_id else {
         return None;
     };
 
@@ -33,25 +33,26 @@ pub async fn build_automod_message(
         }
     };
 
-    let user_str = format_user(&admin, entry.user_id);
+    let user_str = format_user(&admin, user_id);
 
     let rule_id = RuleId::new(target_id.get());
 
-    let rule = guild_id.automod_rule(&ctx, rule_id).await.ok();
+    let rule = guild_id.automod_rule(&ctx.http, rule_id).await.ok();
 
-    let name_change = find_change!(changes, Change::Name);
+    let name_change = find_change!(entry.changes, Change::Name);
     let name = get_name(name_change).unwrap_or_else(|| {
-        rule.map(|rule| rule.name)
-            .unwrap_or_else(|| "*Unknown rule*".to_string())
+        rule.map(|rule| rule.name.as_str())
+            .unwrap_or_else(|| "*Unknown rule*")
     });
 
-    let changes_string = changes
+    let changes_string = entry
+        .changes
         .iter()
         .filter_map(build_automod_change_line)
         .collect::<Vec<_>>()
         .join("\n");
 
-    let embed_author = build_embed_author(&admin, entry.user_id);
+    let embed_author = build_embed_author(&admin, user_id);
     let message = format!(
         "{user_str} **{action} automod rule** {name}**:**\n\n\
          {changes_string}"
@@ -129,7 +130,7 @@ fn build_automod_change_line(change: &Change) -> Option<String> {
     res.join("\n")
 }*/
 
-fn format_channel_list(label: &str, channels: &Vec<ChannelId>) -> Vec<String> {
+fn format_channel_list(label: &str, channels: &[ChannelId]) -> Vec<String> {
     let mut res = Vec::new();
     res.push(format!("- **{label}:**"));
 
@@ -139,7 +140,7 @@ fn format_channel_list(label: &str, channels: &Vec<ChannelId>) -> Vec<String> {
     res
 }
 
-fn format_role_list(label: &str, roles: &Vec<RoleId>) -> Vec<String> {
+fn format_role_list(label: &str, roles: &[RoleId]) -> Vec<String> {
     let mut res = Vec::new();
     res.push(format!("- **{label}:**"));
 

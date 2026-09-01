@@ -1,7 +1,6 @@
 use serenity::all::audit_log::Action;
 use serenity::all::{
-    AuditLogEntry, Colour, CreateEmbed, CreateEmbedAuthor, CreateMessage, InviteCreateEvent,
-    Member, MemberAction, User,
+    AuditLogEntry, Colour, CreateEmbed, CreateEmbedAuthor, CreateMessage, InviteCreateEvent, Member, MemberAction, User, UserId,
 };
 use time::OffsetDateTime;
 
@@ -118,7 +117,7 @@ pub fn build_join_message(
 }
 
 pub fn build_leave_message(
-    user: User,
+    user: &User,
     last_join: Option<i64>,
     join_amount: Option<i32>,
     admin: Option<User>,
@@ -134,9 +133,11 @@ pub fn build_leave_message(
             _ => "Kicked",
         };
 
+        let user_id = entry.user_id.unwrap_or(UserId::new(0));
+
         let reason = get_reason(&entry.reason);
 
-        let admin_string = format_user(&admin, entry.user_id);
+        let admin_string = format_user(&admin, user_id);
 
         let event_string = format!(
             "\n\n**{event_type} by ** {admin_string}\n\
@@ -182,22 +183,22 @@ pub fn build_leave_message(
 
     let avatar_url = user.face();
     let user_id = user.id;
-    let embed_author = build_embed_author_admin(&Some(user), user_id, &admin);
+    let embed_author = build_embed_author_admin(Some(user), user_id, &admin);
 
     let embed = CreateEmbed::new()
         .author(embed_author)
         .title(title)
         .color(Colour::new(0xFF0000))
         .description(embed_description)
-        .thumbnail(&avatar_url);
+        .thumbnail(&avatar_url, None);
 
     CreateMessage::new().embed(embed)
 }
 
 pub fn build_invite_message(data: &InviteCreateEvent) -> CreateMessage {
     let (inviter_id, inviter_name, avatar_url) = match &data.inviter {
-        Some(user) => (user.id.get(), user.name.clone(), Some(user.face())),
-        None => (0, "unknown".to_string(), None),
+        Some(user) => (user.id.get(), user.name.as_str(), Some(user.face())),
+        None => (0, "unknown", None),
     };
 
     let created = data.created_at.unix_timestamp();
@@ -225,7 +226,7 @@ pub fn build_invite_message(data: &InviteCreateEvent) -> CreateMessage {
         code = data.code,
     );
 
-    let mut embed_author = CreateEmbedAuthor::new(&inviter_name);
+    let mut embed_author = CreateEmbedAuthor::new(inviter_name);
     if let Some(url) = &avatar_url {
         embed_author = embed_author.icon_url(url);
     }
@@ -236,7 +237,7 @@ pub fn build_invite_message(data: &InviteCreateEvent) -> CreateMessage {
         .color(Colour::new(0x00AAFF))
         .description(embed_description);
     if let Some(url) = &avatar_url {
-        embed = embed.thumbnail(url);
+        embed = embed.thumbnail(url, None);
     }
 
     CreateMessage::new().embed(embed)

@@ -1,8 +1,6 @@
-use serenity::all::{
-    AuditLogEntry, Change, Channel, ChannelAction, ChannelFlags, ChannelId, ChannelOverwriteAction,
-    ChannelType, Colour, Context, CreateEmbed, CreateMessage, EntityType, PermissionOverwrite,
-    PermissionOverwriteType, Permissions, ThreadAction, User, UserId, audit_log::Action,
-};
+use serenity::{all::{
+    AuditLogEntry, Change, Channel, ChannelAction, ChannelFlags, ChannelId, ChannelOverwriteAction, ChannelType, Colour, Context, CreateEmbed, CreateMessage, EntityType, GuildId, PermissionOverwrite, PermissionOverwriteType, Permissions, ThreadAction, User, UserId, audit_log::Action,
+}, model::guild};
 
 use crate::{
     find_change, format_boolean_change, format_numeric_change, format_numeric_change_operation,
@@ -12,32 +10,27 @@ use crate::{
 };
 
 pub async fn build_channel_message(
-    entry: AuditLogEntry,
+    entry: &AuditLogEntry,
     user: Option<User>,
+    guild_id: &GuildId,
     ctx: &Context,
 ) -> Option<CreateMessage> {
     let Some(target_id) = entry.target_id else {
-        log::error!("No target channel id provided");
         return None;
     };
 
-    let user_str = format_user(&user, entry.user_id);
+    let Some(user_id) = entry.user_id else {
+        return None;
+    };
+
+    let user_str = format_user(&user, user_id);
 
     let channel_id = ChannelId::new(target_id.get());
-    let channel = channel_id.to_channel(&ctx).await.ok();
+    let channel = channel_id.to_guild_channel(&ctx.http, Some(guild_id)).await.ok();
     let channel_str = format_channel(&channel, channel_id);
 
-    let channel_type = if let Some(Channel::Guild(gc)) = channel {
-        match gc.kind {
-            ChannelType::PublicThread => "thread",
-            ChannelType::PrivateThread => "private thread",
-            ChannelType::Forum => "forum",
-            ChannelType::Voice => "voice channel",
-            _ => "channel",
-        }
-    } else {
-        "channel"
-    };
+    let channel_type = channel.base.kind.name().replace("_", " ");
+
 
     let (action, colour) = match entry.action {
         Action::Channel(ChannelAction::Create) | Action::Thread(ThreadAction::Create) => {
@@ -49,7 +42,7 @@ pub async fn build_channel_message(
         Action::Channel(ChannelAction::Update) | Action::Thread(ThreadAction::Update) => {
             // ignore channel updates made by bots
             if let Some(user) = &user
-                && user.bot
+                && user.bot()
             {
                 return None;
             }
@@ -64,17 +57,13 @@ pub async fn build_channel_message(
         }
     };
 
-    let changes = if let Some(changes) = entry.changes {
-        changes
+    let changes = entry.changes
             .iter()
             .filter_map(build_channel_change_line)
             .collect::<Vec<_>>()
-            .join("\n")
-    } else {
-        String::new()
-    };
+            .join("\n");
 
-    let embed_author = build_embed_author(&user, entry.user_id);
+    let embed_author = build_embed_author(&user, user_id);
     let message = format!("{user_str} **{action} {channel_type}** {channel_str}\n\n{changes}");
     let title = format!("{channel_type} {action}").to_uppercase();
 
@@ -90,6 +79,7 @@ pub async fn build_channel_message(
 pub async fn build_permission_override_message(
     entry: AuditLogEntry,
     user: Option<User>,
+    guild_id: &GuildId,
     ctx: &Context,
 ) -> Option<CreateMessage> {
     let Some(target_id) = entry.target_id else {
@@ -101,14 +91,18 @@ pub async fn build_permission_override_message(
         return None;
     };
 
+    let Some(user_id) = entry.user_id else {
+        return None;
+    };
+
     let Some(permission_target_id) = options.id else {
         return None;
     };
 
-    let user_str = format_user(&user, entry.user_id);
+    let user_str = format_user(&user, user_id);
 
     let channel_id = ChannelId::new(target_id.get());
-    let channel = channel_id.to_channel(&ctx).await.ok();
+    let channel = channel_id.to_guild_channel(&ctx, Some(*guild_id)).await.ok();
     let channel = format_channel(&channel, channel_id);
 
     let permission_target_string = if let Some(role_name) = options.role_name {
@@ -121,11 +115,6 @@ pub async fn build_permission_override_message(
         let user_id = UserId::new(permission_target_id.get());
         let user = user_id.to_user(&ctx).await.ok();
         format!("- **Permissions for user** {}", format_user(&user, user_id))
-    };
-
-    let Some(changes) = entry.changes else {
-        log::error!("Changes not present in permission override log");
-        return None;
     };
 
     let (action, colour) = match entry.action {
@@ -147,9 +136,9 @@ pub async fn build_permission_override_message(
         }
     };
 
-    let permission_changes_str = unwrap_changes(&changes);
+    let permission_changes_str = unwrap_changes(&entry.changes);
 
-    let embed_author = build_embed_author(&user, entry.user_id);
+    let embed_author = build_embed_author(&user, user_id);
     let message = format!(
         "{user_str} **{action} permission override**\n\
                     **for channel** {channel}\n\n\
@@ -169,7 +158,7 @@ pub async fn build_permission_override_message(
 
 fn build_channel_change_line(change: &Change) -> Option<String> {
     Some(match change {
-        Change::UserLimit { old, new } => format_numeric_change!("User limit", "", old, new),
+        Change::UserLimit { old, new } => format_numeric_change!("User limit", "", old.get(), new.get()),
         Change::RateLimitPerUser { old, new } => format_numeric_change!("Slowmode", "s", old, new),
         Change::Name { old, new } => format_string_change!("Name", old, new),
         Change::Topic { old, new } => format_string_change!("Description", old, new),
@@ -179,10 +168,10 @@ fn build_channel_change_line(change: &Change) -> Option<String> {
         Change::Invitable { old, new } => format_boolean_change!("Inviteable", old, new),
 
         Change::DefaultAutoArchiveDuration { old, new } => {
-            format_numeric_change_operation!("Archive duration", "h", old, new, |v| v / 60)
+            format_numeric_change_operation!("Archive duration", old, new, |v| format!("`{}h`", v / 60))
         }
         Change::Bitrate { old, new } => {
-            format_numeric_change_operation!("Bitrate", "kbps", old, new, |v| v / 1000)
+            format_numeric_change_operation!("Bitrate", old, new, |v| ormat!("`{}kbps`", v / 1000))
         }
 
         Change::Type { old, new } => match (old, new) {
@@ -215,14 +204,14 @@ fn build_channel_change_line(change: &Change) -> Option<String> {
 fn format_channel_type(entity_type: &EntityType) -> String {
     match entity_type {
         EntityType::Str(entity_type) => entity_type.to_string(),
-        EntityType::Int(entity_type) => ChannelType::from(*entity_type as u8).name().to_string(),
+        EntityType::Int(entity_type) => ChannelType::from(*entity_type).name().to_string(),
         _ => "unknown".to_string(),
     }
 }
 
 fn format_flags_diff(old: &u64, new: &u64) -> Option<String> {
-    let new_flags = ChannelFlags::from_bits(*new);
-    let changed_flags = ChannelFlags::from_bits(old ^ new);
+    let new_flags = ChannelFlags::from_bits(*new as u32);
+    let changed_flags = ChannelFlags::from_bits((old ^ new) as u32);
 
     let Some(new_flags) = new_flags else {
         return None;
@@ -245,7 +234,7 @@ fn format_flags_diff(old: &u64, new: &u64) -> Option<String> {
 }
 
 fn format_flags(flags: &u64) -> Option<String> {
-    let Some(flags) = ChannelFlags::from_bits(*flags) else {
+    let Some(flags) = ChannelFlags::from_bits(*flags as u32) else {
         return None;
     };
 
@@ -262,7 +251,7 @@ fn format_flags(flags: &u64) -> Option<String> {
     Some(result.join("\n"))
 }
 
-fn format_access_permission(permission_overrides: &Vec<PermissionOverwrite>) -> String {
+fn format_access_permission(permission_overrides: &[PermissionOverwrite]) -> String {
     let mut result = Vec::new();
     result.push("- **Access:**".to_string());
     for permission in permission_overrides {

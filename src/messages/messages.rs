@@ -1,8 +1,7 @@
 use std::error::Error;
 
 use serenity::all::{
-    Channel, ChannelId, Colour, CreateAttachment, CreateEmbed, CreateEmbedAuthor, CreateMessage,
-    GuildId, MessageId, User, UserId,
+    Channel, ChannelId, Colour, CreateAttachment, CreateEmbed, CreateEmbedAuthor, CreateMessage, GenericChannelId, GuildId, MessageId, User, UserId,
 };
 use serenity::futures::future::join_all;
 use time::OffsetDateTime;
@@ -28,9 +27,9 @@ pub fn build_edited_message(
     user: Option<User>,
     user_id: UserId,
     channel: Option<Channel>,
-    channel_id: ChannelId,
-    guild: GuildId,
-    message_id: MessageId,
+    channel_id: &GenericChannelId,
+    guild: &GuildId,
+    message_id: &MessageId,
     content: String,
     edits: i32,
 ) -> CreateMessage {
@@ -71,9 +70,9 @@ pub async fn build_deleted_message(
     deleter: Option<User>,
     deleter_id: Option<UserId>,
     channel: Option<Channel>,
-    channel_id: ChannelId,
-    guild: GuildId,
-    message_id: MessageId,
+    channel_id: &GenericChannelId,
+    guild: &GuildId,
+    message_id: &MessageId,
     content: Option<String>,
     attachments: Option<String>,
     stickers: Option<String>,
@@ -134,13 +133,13 @@ pub async fn build_deleted_message(
 
         if !attachments.is_empty() {
             // First attachment goes in the main embed
-            embed = embed.thumbnail(attachments[0]);
+            embed = embed.thumbnail(attachments[0], None);
             message = message.embed(embed);
 
             // Any additional attachments get their own embeds
             for attachment in attachments.iter().skip(1) {
                 let extra_embed = CreateEmbed::new()
-                    .thumbnail(*attachment)
+                    .thumbnail(*attachment, None)
                     .color(Colour::new(0xFF0000));
                 message = message.add_embed(extra_embed);
             }
@@ -154,7 +153,7 @@ pub async fn build_deleted_message(
 pub fn build_bulk_delete_message(
     messages: Vec<(UserId, Option<User>, Vec<String>)>,
     channel: Option<Channel>,
-    channel_id: ChannelId,
+    channel_id: &GenericChannelId,
     count: usize,
 ) -> CreateMessage {
     let mut content = String::new();

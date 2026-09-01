@@ -1,15 +1,16 @@
-use serenity::all::{
-    AuditLogEntry, ChannelId, Context, GuildId, MemberAction, MessageAction, UserId,
-    audit_log::Action,
+use serenity::{
+    all::{
+        AuditLogEntry, ChannelId, Context, GenericChannelId, GuildId, MemberAction, MessageAction, UserId, audit_log::Action,
+    }, nonmax::NonMaxU8,
 };
 use sqlx::{PgPool, Row};
 
 // Max number of logs to look through
-const NUMBER_OF_LOG_LIMIT: u8 = 10;
+const NUMBER_OF_LOG_LIMIT: Option<NonMaxU8> = NonMaxU8::new(10);
 
 pub async fn init_audit_log(guild_id: GuildId, ctx: &Context, pool: &PgPool) {
     let logs = guild_id
-        .audit_logs(&ctx, None, None, None, Some(NUMBER_OF_LOG_LIMIT))
+        .audit_logs(&ctx.http, None, None, None, None, NUMBER_OF_LOG_LIMIT)
         .await;
 
     let logs = match logs {
@@ -24,7 +25,7 @@ pub async fn init_audit_log(guild_id: GuildId, ctx: &Context, pool: &PgPool) {
         let count = if let Some(options) = &entry.options
             && let Some(count) = options.count
         {
-            count as i32
+            count.get() as i32
         } else {
             1
         };
@@ -46,19 +47,20 @@ pub async fn init_audit_log(guild_id: GuildId, ctx: &Context, pool: &PgPool) {
 }
 
 pub async fn get_message_deleted_entry(
-    guild_id: GuildId,
-    channel_id: ChannelId,
-    user_id: Option<UserId>,
+    guild_id: &GuildId,
+    channel_id: &GenericChannelId,
+    user_id: &Option<UserId>,
     ctx: &Context,
     pool: &PgPool,
 ) -> Option<AuditLogEntry> {
     let logs = guild_id
         .audit_logs(
-            &ctx,
+            &ctx.http,
             Some(Action::Message(MessageAction::Delete)),
             None,
             None,
-            Some(NUMBER_OF_LOG_LIMIT),
+            None,
+            NUMBER_OF_LOG_LIMIT,
         )
         .await;
 
@@ -73,7 +75,7 @@ pub async fn get_message_deleted_entry(
     for entry in logs.entries {
         if let Some(options) = &entry.options
             && let Some(msg_channel_id) = options.channel_id
-            && msg_channel_id != channel_id
+            && msg_channel_id.get() != channel_id.get()
         {
             continue;
         }
@@ -88,7 +90,7 @@ pub async fn get_message_deleted_entry(
         let count = if let Some(options) = &entry.options
             && let Some(count) = options.count
         {
-            count as i32
+            count.get() as i32
         } else {
             1
         };
@@ -119,13 +121,13 @@ pub async fn get_message_deleted_entry(
 }
 
 pub async fn get_ban_or_kick_event(
-    guild_id: GuildId,
-    user_id: UserId,
+    guild_id: &GuildId,
+    user_id: &UserId,
     ctx: &Context,
     pool: &PgPool,
 ) -> Option<AuditLogEntry> {
     let logs = guild_id
-        .audit_logs(ctx, None, None, None, Some(NUMBER_OF_LOG_LIMIT))
+        .audit_logs(&ctx.http, None, None, None, None, NUMBER_OF_LOG_LIMIT)
         .await;
 
     let logs = match logs {

@@ -1,10 +1,12 @@
-use serenity::all::{
-    AuditLogEntry, Change, Colour, Context, CreateEmbed, CreateMessage, Timestamp, User, UserId,
+use serenity::{
+    all::{
+        AuditLogEntry, Change, Colour, Context, CreateEmbed, CreateMessage, Timestamp, User, UserId,
+    },
+    small_fixed_array::FixedString,
 };
 
 use crate::{
-    find_change, format_boolean_change,
-    format_string_change,
+    find_change, format_boolean_change, format_string_change,
     messages::{
         format_time::format_time_diff,
         utils::{build_embed_author, build_embed_author_admin, format_user, get_reason},
@@ -17,7 +19,7 @@ pub async fn build_role_change_message(
     ctx: &Context,
 ) -> Option<CreateMessage> {
     if let Some(admin) = &admin
-        && admin.bot
+        && admin.bot()
     {
         return None;
     };
@@ -26,12 +28,12 @@ pub async fn build_role_change_message(
         return None;
     };
 
-    let Some(changes) = entry.changes else {
+    let Some(admin_id) = entry.user_id else {
         return None;
     };
 
     // Ignore self-roles, like in onboarding or server guide
-    if target_id.get() == entry.user_id.get() {
+    if target_id.get() == admin_id.get() {
         return None;
     }
 
@@ -39,13 +41,13 @@ pub async fn build_role_change_message(
     let user = user_id.to_user(&ctx).await.ok();
 
     let user_str = format_user(&user, user_id);
-    let admin_str = format_user(&admin, entry.user_id);
+    let admin_str = format_user(&admin, admin_id);
 
     let embed_author = build_embed_author_admin(&user, user_id, &admin);
     let avatar_url = user.map_or(String::new(), |u| u.face());
 
-    let added = find_change!(changes, Change::RolesAdded);
-    let removed = find_change!(changes, Change::RolesRemove);
+    let added = find_change!(entry.changes, Change::RolesAdded);
+    let removed = find_change!(entry.changes, Change::RolesRemoved);
 
     let (title, header, colour) = match (added, removed) {
         (Some(_), None) => (
@@ -78,7 +80,7 @@ pub async fn build_role_change_message(
         }
     }
 
-    if let Some(Change::RolesRemove {
+    if let Some(Change::RolesRemoved {
         old: _,
         new: Some(new_roles),
     }) = removed
@@ -96,13 +98,17 @@ pub async fn build_role_change_message(
         .author(embed_author)
         .color(colour)
         .description(message)
-        .thumbnail(avatar_url);
+        .thumbnail(avatar_url, None);
 
     Some(CreateMessage::new().embed(embed))
 }
 
 pub fn build_purge_message(entry: AuditLogEntry, user: Option<User>) -> Option<CreateMessage> {
     let Some(options) = entry.options else {
+        return None;
+    };
+
+    let Some(admin_id) = entry.user_id else {
         return None;
     };
 
@@ -116,9 +122,9 @@ pub fn build_purge_message(entry: AuditLogEntry, user: Option<User>) -> Option<C
         String::new()
     };
 
-    let user_str = format_user(&user, entry.user_id);
+    let user_str = format_user(&user, admin_id);
 
-    let embed_author = build_embed_author(&user, entry.user_id);
+    let embed_author = build_embed_author(&user, admin_id);
 
     let message = format!("{user_str} **purged** {number} **members**{inactive_days}");
 
@@ -136,7 +142,11 @@ pub async fn build_bot_message(
     user: Option<User>,
     ctx: &Context,
 ) -> Option<CreateMessage> {
-    let user_str = format_user(&user, entry.user_id);
+    let Some(user_id) = entry.user_id else {
+        return None;
+    };
+
+    let user_str = format_user(&user, user_id);
 
     let Some(target_id) = entry.target_id else {
         return None;
@@ -148,7 +158,7 @@ pub async fn build_bot_message(
     let bot_str = format_user(&bot, bot_id);
     let avatar_url = bot.map_or(String::new(), |u| u.face());
 
-    let embed_author = build_embed_author(&user, entry.user_id);
+    let embed_author = build_embed_author(&user, user_id);
 
     let message = format!("{user_str} **added bot** {bot_str}");
 
@@ -157,7 +167,7 @@ pub async fn build_bot_message(
         .author(embed_author)
         .color(Colour::new(0x00FF00))
         .description(message)
-        .thumbnail(avatar_url);
+        .thumbnail(avatar_url, None);
 
     Some(CreateMessage::new().embed(embed))
 }
@@ -167,10 +177,14 @@ pub async fn build_unban_message(
     admin: Option<User>,
     ctx: &Context,
 ) -> Option<CreateMessage> {
-    let admin_str = format_user(&admin, entry.user_id);
+    let Some(admin_id) = entry.user_id else {
+        return None;
+    };
     let Some(target_id) = entry.target_id else {
         return None;
     };
+
+    let admin_str = format_user(&admin, admin_id);
 
     let user_id = UserId::new(target_id.get());
     let user = user_id.to_user(&ctx).await.ok();
@@ -188,7 +202,7 @@ pub async fn build_unban_message(
         .author(embed_author)
         .color(Colour::new(0x00FF00))
         .description(message)
-        .thumbnail(avatar_url);
+        .thumbnail(avatar_url, None);
 
     Some(CreateMessage::new().embed(embed))
 }
@@ -202,23 +216,23 @@ pub async fn build_member_update_message(
         return None;
     };
 
-    let Some(changes) = entry.changes else {
+    let Some(admin_id) = entry.user_id else {
         return None;
     };
 
     // If self-action, ignore admin, just show self-change
-    let (admin_string, admin) = if target_id.get() == entry.user_id.get() {
+    let (admin_string, admin) = if target_id.get() == admin_id.get() {
         (None, None)
     } else {
-        (Some(format_user(&admin, entry.user_id)), admin)
+        (Some(format_user(&admin, admin_id)), admin)
     };
 
     let user_id = UserId::new(target_id.get());
     let user = user_id.to_user(&ctx).await.ok();
     let user_string = format_user(&user, user_id);
 
-    let embed: CreateEmbed = if changes.len() == 1 {
-        match &changes[0] {
+    let embed: CreateEmbed = if entry.changes.len() == 1 {
+        match &entry.changes[0] {
             Change::Mute { old, new } => {
                 build_mute_message("muted", old, new, user_string, admin_string)
             }
@@ -236,16 +250,16 @@ pub async fn build_member_update_message(
             Change::Nick { old, new } => {
                 build_username_change(old, new, user_string, admin_string, &user)
             }
-            _ => format_member_changes(changes, user_string, admin_string.unwrap_or(String::new())),
+            _ => format_member_changes(entry.changes, user_string, admin_string.unwrap_or(String::new())),
         }
     } else {
-        format_member_changes(changes, user_string, admin_string.unwrap_or(String::new()))
+        format_member_changes(entry.changes, user_string, admin_string.unwrap_or(String::new()))
     };
 
     let embed_author = build_embed_author_admin(&user, user_id, &admin);
     let avatar_url = user.map_or(String::new(), |u| u.face());
 
-    Some(CreateMessage::new().embed(embed.thumbnail(avatar_url).author(embed_author)))
+    Some(CreateMessage::new().embed(embed.thumbnail(avatar_url, None).author(embed_author)))
 }
 
 fn format_member_changes(
@@ -272,7 +286,7 @@ fn build_timeout_message(
     now: Timestamp,
     user_string: String,
     admin_string: String,
-    reason: Option<String>,
+    reason: Option<FixedString>,
 ) -> CreateEmbed {
     let now = now.unix_timestamp();
 
@@ -344,8 +358,8 @@ fn build_mute_message(
 }
 
 fn build_username_change(
-    old: &Option<String>,
-    new: &Option<String>,
+    old: &Option<FixedString>,
+    new: &Option<FixedString>,
     user_string: String,
     admin_string: Option<String>,
     user: &Option<User>,
@@ -373,13 +387,13 @@ fn build_username_change(
     }
 
     if let Some(old) = old {
-        embed = embed.field("Old:", old, true);
+        embed = embed.field("Old:", *old, true);
     } else if let Some(globalname) = globalname {
         embed = embed.field("Old (Globalname):", globalname, true);
     }
 
     if let Some(new) = new {
-        embed = embed.field("New:", new, true);
+        embed = embed.field("New:", *new, true);
     } else if let Some(globalname) = globalname {
         embed = embed.field("New (Globalname):", globalname, true);
     }

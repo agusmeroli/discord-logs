@@ -18,10 +18,14 @@ pub async fn build_sticker_message(
         return None;
     };
 
-    let user_str = format_user(&user, entry.user_id);
+    let Some(user_id) = entry.user_id else {
+        return None;
+    };
+
+    let user_str = format_user(&user, user_id);
 
     let sticker_id = StickerId::new(sticker_id.get());
-    let sticker = sticker_id.to_sticker(&ctx).await.ok();
+    let sticker = sticker_id.to_sticker(&ctx.http).await.ok();
 
     let (action, colour) = match entry.action {
         Action::Sticker(StickerAction::Create) => ("created", Colour::new(0x00FF00)),
@@ -36,17 +40,13 @@ pub async fn build_sticker_message(
         }
     };
 
-    let changes = if let Some(changes) = entry.changes {
-        changes
+    let changes = entry.changes
             .iter()
             .filter_map(build_sticker_change_line)
             .collect::<Vec<_>>()
-            .join("\n")
-    } else {
-        String::new()
-    };
+            .join("\n");
 
-    let embed_author = build_embed_author(&user, entry.user_id);
+    let embed_author = build_embed_author(&user, user_id);
     let message = format!("{user_str} **{action} a sticker**\n\n{changes}");
     let title = format!("STICKER {action}").to_uppercase();
 
@@ -59,23 +59,23 @@ pub async fn build_sticker_message(
     if let Some(sticker) = sticker
         && let Some(url) = sticker.image_url()
     {
-        embed = embed.thumbnail(url);
+        embed = embed.thumbnail(url, None);
     }
 
     Some(CreateMessage::new().embed(embed))
 }
 
-pub fn build_emoji_message(entry: AuditLogEntry, user: Option<User>) -> Option<CreateMessage> {
+pub fn build_emoji_message<'a>(entry: AuditLogEntry, user: Option<User>) -> Option<CreateMessage<'a>> {
     let Some(emoji_id) = entry.target_id else {
         log::error!("No emoji sticker id provided");
         return None;
     };
 
-    let Some(changes) = entry.changes else {
+    let Some(user_id) = entry.user_id else {
         return None;
     };
 
-    let user_str = format_user(&user, entry.user_id);
+    let user_str = format_user(&user, user_id);
 
     let (action, colour) = match entry.action {
         Action::Emoji(EmojiAction::Create) => ("created", Colour::new(0x00FF00)),
@@ -90,9 +90,9 @@ pub fn build_emoji_message(entry: AuditLogEntry, user: Option<User>) -> Option<C
         }
     };
 
-    let name_change = find_change!(changes, Change::Name);
+    let name_change = find_change!(entry.changes, Change::Name);
 
-    let emoji_name = get_name(name_change).unwrap_or("unknown_name".to_string());
+    let emoji_name = get_name(name_change).unwrap_or("unknown_name");
 
     let Some(name_change) = name_change else {
         return None;
@@ -106,7 +106,7 @@ pub fn build_emoji_message(entry: AuditLogEntry, user: Option<User>) -> Option<C
         format!("# - <:{emoji_name}:{emoji_id}>")
     };
 
-    let embed_author = build_embed_author(&user, entry.user_id);
+    let embed_author = build_embed_author(&user, user_id);
     let message = format!(
         "{user_str} **{action} an emoji**: \n\
          {name_line}\n\
@@ -139,10 +139,10 @@ fn build_sticker_change_line(change: &Change) -> Option<String> {
 
 fn sticker_format_to_string(format: &StickerFormatType) -> String {
     let format_name = match format {
-        StickerFormatType::Png => "PNG",
-        StickerFormatType::Apng => "A-PNG",
-        StickerFormatType::Gif => "GIF",
-        StickerFormatType::Lottie => "Lottie",
+        &StickerFormatType::Png => "PNG",
+        &StickerFormatType::Apng => "A-PNG",
+        &StickerFormatType::Gif => "GIF",
+        &StickerFormatType::Lottie => "Lottie",
         _ => "unknown",
     };
 

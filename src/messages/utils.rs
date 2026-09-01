@@ -1,6 +1,9 @@
-use serenity::all::{
-    Change, Channel, ChannelId, Context, CreateEmbedAuthor, CreateMessage, Role, RoleId, User,
-    UserId,
+use serenity::{
+    all::{
+        Change, Channel, ChannelId, Context, CreateEmbedAuthor, CreateMessage, GuildChannel, Role,
+        RoleId, User, UserId,
+    },
+    small_fixed_array::FixedString,
 };
 use tokio::time::{Duration, sleep};
 
@@ -30,11 +33,11 @@ pub fn build_embed_author(user: &Option<User>, user_id: UserId) -> CreateEmbedAu
     }
 }
 
-pub fn build_embed_author_admin(
-    user: &Option<User>,
+pub fn build_embed_author_admin<'a>(
+    user: &'a Option<User>,
     user_id: UserId,
-    admin: &Option<User>,
-) -> CreateEmbedAuthor {
+    admin: &'a Option<User>,
+) -> CreateEmbedAuthor<'a> {
     match (user, admin) {
         (Some(user), Some(admin)) => {
             let avatar_url = admin.face();
@@ -64,23 +67,21 @@ pub fn format_role(role: &Option<Role>, role_id: RoleId) -> String {
     }
 }
 
-pub fn format_channel(channel: &Option<Channel>, channel_id: ChannelId) -> String {
+pub fn format_channel(channel: &Option<GuildChannel>, channel_id: ChannelId) -> String {
     match channel {
-        Some(Channel::Guild(gc)) => {
+        Some(gc) => {
             if let Some(parent_id) = gc.parent_id {
+            //
                 format!("<#{parent_id}>**>**<#{channel_id}>({})", gc.name)
             } else {
                 format!("<#{channel_id}>({})", gc.name)
             }
         }
-        Some(Channel::Private(pc)) => {
-            let recipient = &pc.recipient;
-            format!("DM with <@{}>({})", recipient.id.get(), recipient.name)
-        }
         _ => format!("<#{channel_id}>"),
     }
 }
 
+// unlike generic format 0 is treated as the default value
 #[macro_export]
 macro_rules! format_numeric_change {
     ($name:expr, $unit:expr, $old:expr, $new:expr) => {{
@@ -104,10 +105,30 @@ macro_rules! format_numeric_change {
 }
 
 #[macro_export]
-macro_rules! format_numeric_change_operation {
-    ($name:expr, $unit:expr, $old:expr, $new:expr, $operation: expr) => {{
+macro_rules! format_generic_change {
+    ($name:expr, $old:expr, $new:expr, $operation: expr) => {{
         const NAME: &str = $name;
-        const UNIT: &str = $unit;
+        let op = $operation;
+        let old = $old;
+        let new = $new;
+
+        match (old, new) {
+            (None, Some(new)) => {
+                format!("- **{NAME}:** `{}`", op(new)).into()
+            }
+            (Some(old), None) => format!("- **{NAME}:** *was* `{}`", op(old)).into(),
+            (Some(old), Some(new)) => {
+                format!("- **{NAME}:** `{}` ➜ `{}`", op(old), op(new)).into()
+            }
+            _ => return None,
+        }
+    }};
+}
+
+#[macro_export]
+macro_rules! format_numeric_change_operation {
+    ($name:expr, $old:expr, $new:expr, $operation: expr) => {{
+        const NAME: &str = $name;
         let op = $operation;
         let old = $old;
         let new = $new;
@@ -116,14 +137,14 @@ macro_rules! format_numeric_change_operation {
             (None, Some(0)) => return None,
             (Some(0), None) => return None,
             (None, Some(new)) | (Some(0), Some(new)) => {
-                format!("- **{NAME}:** `{}{UNIT}`", op(new)).into()
+                format!("- **{NAME}:** `{}`", op(new)).into()
             }
-            (Some(old), None) => format!("- **{NAME}:** *was* `{}{UNIT}`", op(old)).into(),
+            (Some(old), None) => format!("- **{NAME}:** *was* `{}`", op(old)).into(),
             (Some(old), Some(0)) => {
-                format!("- **{NAME} disabled:** *was* `{}{UNIT}`", op(old)).into()
+                format!("- **{NAME} disabled:** *was* `{}`", op(old)).into()
             }
             (Some(old), Some(new)) => {
-                format!("- **{NAME}:** `{}` ➜ `{}{UNIT}`", op(old), op(new)).into()
+                format!("- **{NAME}:** `{}` ➜ `{}`", op(old), op(new)).into()
             }
             _ => return None,
         }
@@ -146,7 +167,7 @@ macro_rules! format_string_change {
     }};
 }
 
-pub fn get_reason(reason: &Option<String>) -> &str {
+pub fn get_reason(reason: &Option<FixedString>) -> &str {
     if let Some(reason) = reason
         && !reason.is_empty()
     {
@@ -189,16 +210,16 @@ macro_rules! unwrap_change {
     };
 }
 
-pub fn get_name(change: Option<&Change>) -> Option<String> {
+pub fn get_name(change: Option<&Change>) -> Option<&str> {
     Some(match change {
         Some(Change::Name {
             old: _,
             new: Some(new),
-        }) => new.clone(),
+        }) => new.as_str(),
         Some(Change::Name {
             old: Some(old),
             new: _,
-        }) => old.clone(),
+        }) => old.as_str(),
         _ => return None,
     })
 }
