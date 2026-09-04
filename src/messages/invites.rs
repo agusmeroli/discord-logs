@@ -13,7 +13,7 @@ pub fn build_join_message(
     join_amount: i32,
     last_known_join: i64,
     used_invite: Option<&UsedInvite>,
-) -> CreateMessage {
+) -> CreateMessage<'static> {
     let user_id = new_member.user.id.get();
     let account_created = new_member.user.id.created_at().unix_timestamp();
     let now = OffsetDateTime::now_utc().unix_timestamp();
@@ -40,7 +40,7 @@ pub fn build_join_message(
         }
     }
 
-    if new_member.user.bot {
+    if new_member.user.bot() {
         suspicions.push("- User is a bot 🤖".to_string());
     }
 
@@ -87,7 +87,7 @@ pub fn build_join_message(
     );
 
     let avatar_url = new_member.face();
-    let embed_author = CreateEmbedAuthor::new(username).icon_url(&avatar_url);
+    let embed_author = CreateEmbedAuthor::new(username.to_string()).icon_url(avatar_url.clone());
 
     let mut embed = CreateEmbed::new()
         .author(embed_author)
@@ -102,7 +102,7 @@ pub fn build_join_message(
             Colour::new(0x00FF00)
         })
         .description(embed_description)
-        .thumbnail(&avatar_url)
+        .thumbnail(avatar_url, None)
         .field("Display Name", new_member.display_name().to_string(), true);
 
     if join_amount > 0 {
@@ -122,7 +122,7 @@ pub fn build_leave_message(
     join_amount: Option<i32>,
     admin: Option<User>,
     entry: Option<AuditLogEntry>,
-) -> CreateMessage {
+) -> CreateMessage<'static> {
     let user_id = user.id.get();
     let username = &user.name;
 
@@ -183,22 +183,23 @@ pub fn build_leave_message(
 
     let avatar_url = user.face();
     let user_id = user.id;
-    let embed_author = build_embed_author_admin(Some(user), user_id, &admin);
+    let user = Some(user.clone());
+    let embed_author = build_embed_author_admin(&user, user_id, &admin);
 
     let embed = CreateEmbed::new()
         .author(embed_author)
         .title(title)
         .color(Colour::new(0xFF0000))
         .description(embed_description)
-        .thumbnail(&avatar_url, None);
+        .thumbnail(avatar_url, None);
 
     CreateMessage::new().embed(embed)
 }
 
-pub fn build_invite_message(data: &InviteCreateEvent) -> CreateMessage {
+pub fn build_invite_message(data: &InviteCreateEvent) -> CreateMessage<'static> {
     let (inviter_id, inviter_name, avatar_url) = match &data.inviter {
-        Some(user) => (user.id.get(), user.name.as_str(), Some(user.face())),
-        None => (0, "unknown", None),
+        Some(user) => (user.id.get(), user.name.to_string(), Some(user.face())),
+        None => (0, "unknown".to_string(), None),
     };
 
     let created = data.created_at.unix_timestamp();
@@ -228,7 +229,7 @@ pub fn build_invite_message(data: &InviteCreateEvent) -> CreateMessage {
 
     let mut embed_author = CreateEmbedAuthor::new(inviter_name);
     if let Some(url) = &avatar_url {
-        embed_author = embed_author.icon_url(url);
+        embed_author = embed_author.icon_url(url.clone());
     }
 
     let mut embed = CreateEmbed::new()
@@ -237,7 +238,7 @@ pub fn build_invite_message(data: &InviteCreateEvent) -> CreateMessage {
         .color(Colour::new(0x00AAFF))
         .description(embed_description);
     if let Some(url) = &avatar_url {
-        embed = embed.thumbnail(url, None);
+        embed = embed.thumbnail(url.clone(), None);
     }
 
     CreateMessage::new().embed(embed)

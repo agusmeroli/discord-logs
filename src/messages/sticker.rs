@@ -12,7 +12,7 @@ pub async fn build_sticker_message(
     entry: AuditLogEntry,
     user: Option<User>,
     ctx: &Context,
-) -> Option<CreateMessage> {
+) -> Option<CreateMessage<'static>> {
     let Some(sticker_id) = entry.target_id else {
         log::error!("No target sticker id provided");
         return None;
@@ -65,7 +65,7 @@ pub async fn build_sticker_message(
     Some(CreateMessage::new().embed(embed))
 }
 
-pub fn build_emoji_message<'a>(entry: AuditLogEntry, user: Option<User>) -> Option<CreateMessage<'a>> {
+pub fn build_emoji_message(entry: AuditLogEntry, user: Option<User>) -> Option<CreateMessage<'static>> {
     let Some(emoji_id) = entry.target_id else {
         log::error!("No emoji sticker id provided");
         return None;

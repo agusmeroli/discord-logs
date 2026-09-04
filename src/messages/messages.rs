@@ -1,7 +1,8 @@
 use std::error::Error;
 
 use serenity::all::{
-    Channel, ChannelId, Colour, CreateAttachment, CreateEmbed, CreateEmbedAuthor, CreateMessage, GenericChannelId, GuildId, MessageId, User, UserId,
+    Channel, Colour, CreateAttachment, CreateEmbed, CreateEmbedAuthor, CreateMessage,
+    GenericChannelId, GuildId, MessageId, User, UserId,
 };
 use serenity::futures::future::join_all;
 use time::OffsetDateTime;
@@ -27,12 +28,12 @@ pub fn build_edited_message(
     user: Option<User>,
     user_id: UserId,
     channel: Option<Channel>,
-    channel_id: &GenericChannelId,
-    guild: &GuildId,
-    message_id: &MessageId,
+    channel_id: GenericChannelId,
+    guild: GuildId,
+    message_id: MessageId,
     content: String,
     edits: i32,
-) -> CreateMessage {
+) -> CreateMessage<'static> {
     let created = message_id.created_at().unix_timestamp();
 
     let message_author = build_message_info(&user, Some(user_id));
@@ -70,14 +71,14 @@ pub async fn build_deleted_message(
     deleter: Option<User>,
     deleter_id: Option<UserId>,
     channel: Option<Channel>,
-    channel_id: &GenericChannelId,
-    guild: &GuildId,
-    message_id: &MessageId,
+    channel_id: GenericChannelId,
+    guild: GuildId,
+    message_id: MessageId,
     content: Option<String>,
     attachments: Option<String>,
     stickers: Option<String>,
     edits: i32,
-) -> CreateMessage {
+) -> CreateMessage<'static> {
     let created = message_id.created_at().unix_timestamp();
 
     let message_author = build_message_info(&user, user_id);
@@ -133,13 +134,13 @@ pub async fn build_deleted_message(
 
         if !attachments.is_empty() {
             // First attachment goes in the main embed
-            embed = embed.thumbnail(attachments[0], None);
+            embed = embed.thumbnail(attachments[0].to_string(), None);
             message = message.embed(embed);
 
             // Any additional attachments get their own embeds
             for attachment in attachments.iter().skip(1) {
                 let extra_embed = CreateEmbed::new()
-                    .thumbnail(*attachment, None)
+                    .thumbnail((*attachment).to_string(), None)
                     .color(Colour::new(0xFF0000));
                 message = message.add_embed(extra_embed);
             }
@@ -153,9 +154,9 @@ pub async fn build_deleted_message(
 pub fn build_bulk_delete_message(
     messages: Vec<(UserId, Option<User>, Vec<String>)>,
     channel: Option<Channel>,
-    channel_id: &GenericChannelId,
+    channel_id: GenericChannelId,
     count: usize,
-) -> CreateMessage {
+) -> CreateMessage<'static> {
     let mut content = String::new();
 
     for (user_id, user, user_messages) in messages {
@@ -192,7 +193,7 @@ pub fn build_bulk_delete_message(
     CreateMessage::new().embed(embed)
 }
 
-async fn reupload_attachements(attachments: Option<String>) -> CreateMessage {
+async fn reupload_attachements(attachments: Option<String>) -> CreateMessage<'static> {
     let mut builder = CreateMessage::new();
 
     let Some(attachments) = attachments else {
@@ -203,7 +204,7 @@ async fn reupload_attachements(attachments: Option<String>) -> CreateMessage {
         let (url, filename) = line.split_once('|').unwrap_or((line, "unknown_attachment"));
 
         match download_single(url).await {
-            Ok(bytes) => Some((bytes, filename)),
+            Ok(bytes) => Some((bytes, filename.to_string())),
             Err(e) => {
                 log::error!("Failed to fetch URL {}: {}", url, e);
                 None

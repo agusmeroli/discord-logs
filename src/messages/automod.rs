@@ -13,7 +13,7 @@ pub async fn build_automod_message(
     admin: Option<User>,
     guild_id: GuildId,
     ctx: &Context,
-) -> Option<CreateMessage> {
+) -> Option<CreateMessage<'static>> {
     let Some(target_id) = entry.target_id else {
         log::error!("No target channel id provided");
         return None;
@@ -40,10 +40,12 @@ pub async fn build_automod_message(
     let rule = guild_id.automod_rule(&ctx.http, rule_id).await.ok();
 
     let name_change = find_change!(entry.changes, Change::Name);
-    let name = get_name(name_change).unwrap_or_else(|| {
-        rule.map(|rule| rule.name.as_str())
-            .unwrap_or_else(|| "*Unknown rule*")
-    });
+    let name = get_name(name_change)
+        .map(str::to_string)
+        .unwrap_or_else(|| {
+            rule.map(|rule| rule.name.to_string())
+                .unwrap_or_else(|| "*Unknown rule*".to_string())
+        });
 
     let changes_string = entry
         .changes

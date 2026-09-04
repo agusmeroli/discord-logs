@@ -4,8 +4,7 @@ use serenity::all::{
 };
 
 use crate::{
-    format_boolean_change, format_generic_change, format_numeric_change_operation,
-    format_string_change,
+    format_boolean_change, format_generic_change, format_string_change,
     messages::utils::{build_embed_author, format_role, format_user},
 };
 
@@ -14,7 +13,7 @@ pub async fn build_role_message(
     user: Option<User>,
     guild_id: GuildId,
     ctx: &Context,
-) -> Option<CreateMessage> {
+) -> Option<CreateMessage<'static>> {
     let Some(target_id) = entry.target_id else {
         log::error!("No target role id provided");
         return None;

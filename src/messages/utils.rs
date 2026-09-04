@@ -1,7 +1,9 @@
+use std::fmt::Display;
+
 use serenity::{
     all::{
-        Change, Channel, ChannelId, Context, CreateEmbedAuthor, CreateMessage, GuildChannel, Role,
-        RoleId, User, UserId,
+        Change, Channel, ChannelId, Context, CreateEmbedAuthor, CreateMessage, Role, RoleId, User,
+        UserId,
     },
     small_fixed_array::FixedString,
 };
@@ -9,11 +11,19 @@ use tokio::time::{Duration, sleep};
 
 const MSG_RETRY_INTERVAL: Duration = Duration::from_millis(200);
 
-pub async fn send_message(message: CreateMessage, ctx: &Context, channel_id: ChannelId) {
-    if let Err(_) = channel_id.send_message(ctx, message.clone()).await {
+pub async fn send_message(
+    message: CreateMessage<'static>,
+    ctx: &Context,
+    channel_id: ChannelId,
+) {
+    if let Err(_) = channel_id
+        .widen()
+        .send_message(&ctx.http, message.clone())
+        .await
+    {
         sleep(MSG_RETRY_INTERVAL).await;
 
-        if let Err(e) = channel_id.send_message(ctx, message).await {
+        if let Err(e) = channel_id.widen().send_message(&ctx.http, message).await {
             log::error!(
                 "Unable to send message to channel {} after retry: {}",
                 channel_id,
@@ -23,21 +33,21 @@ pub async fn send_message(message: CreateMessage, ctx: &Context, channel_id: Cha
     }
 }
 
-pub fn build_embed_author(user: &Option<User>, user_id: UserId) -> CreateEmbedAuthor {
+pub fn build_embed_author(user: &Option<User>, user_id: UserId) -> CreateEmbedAuthor<'static> {
     match (user, user_id) {
         (Some(user), _) => {
             let avatar_url = user.avatar_url().unwrap_or_else(|| user.face());
-            CreateEmbedAuthor::new(&user.name).icon_url(avatar_url)
+            CreateEmbedAuthor::new(user.name.to_string()).icon_url(avatar_url)
         }
         (None, user_id) => CreateEmbedAuthor::new(user_id.to_string()),
     }
 }
 
-pub fn build_embed_author_admin<'a>(
-    user: &'a Option<User>,
+pub fn build_embed_author_admin(
+    user: &Option<User>,
     user_id: UserId,
-    admin: &'a Option<User>,
-) -> CreateEmbedAuthor<'a> {
+    admin: &Option<User>,
+) -> CreateEmbedAuthor<'static> {
     match (user, admin) {
         (Some(user), Some(admin)) => {
             let avatar_url = admin.face();
@@ -67,17 +77,17 @@ pub fn format_role(role: &Option<Role>, role_id: RoleId) -> String {
     }
 }
 
-pub fn format_channel(channel: &Option<GuildChannel>, channel_id: ChannelId) -> String {
-    match channel {
-        Some(gc) => {
-            if let Some(parent_id) = gc.parent_id {
-            //
-                format!("<#{parent_id}>**>**<#{channel_id}>({})", gc.name)
-            } else {
-                format!("<#{channel_id}>({})", gc.name)
-            }
-        }
-        _ => format!("<#{channel_id}>"),
+pub fn format_channel(channel: &Option<Channel>, channel_id: impl Display) -> String {
+    let (parent_id, name) = match channel {
+        Some(Channel::Guild(gc)) => (gc.parent_id, gc.base.name.as_str()),
+        Some(Channel::GuildThread(thread)) => (Some(thread.parent_id), thread.base.name.as_str()),
+        _ => return format!("<#{channel_id}>"),
+    };
+
+    if let Some(parent_id) = parent_id {
+        format!("<#{parent_id}>**>**<#{channel_id}>({name})")
+    } else {
+        format!("<#{channel_id}>({name})")
     }
 }
 

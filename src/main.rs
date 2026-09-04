@@ -17,16 +17,11 @@ use log4rs::config::{Appender, Config as LogConfig, Logger, Root};
 use log4rs::encode::pattern::PatternEncoder;
 use serenity::Client;
 use serenity::all::audit_log::Action;
-use serenity::all::{
-    AuditLogEntry, ChannelId, Context, FullEvent, Guild, GuildId, InviteCreateEvent,
-    InviteDeleteEvent, Member, MemberAction, Message, MessageId, MessageUpdateEvent, Ready,
-    RichInvite, User, UserId,
-};
+use serenity::all::{Context, FullEvent, GuildId, Invite, MemberAction, Message, UserId};
 use serenity::futures::StreamExt;
 use serenity::prelude::{EventHandler, GatewayIntents};
 use sqlx::{PgPool, Row};
 use std::collections::{HashMap, HashSet};
-use std::panic::Full;
 use std::sync::Arc;
 use stringmetrics::levenshtein_limit;
 use time::OffsetDateTime;
@@ -41,20 +36,29 @@ pub struct Handler {
 
 impl Handler {
     /// Store or refresh a single invite (its current use count in particular) in the database.
-    async fn upsert_invite(&self, guild_id: i64, invite: &RichInvite) {
+    async fn upsert_invite(&self, guild_id: i64, invite: &Invite) {
         let inviter_id = invite.inviter.as_ref().map(|u| u.id.get()).unwrap_or(0) as i64;
+        let (uses, max_uses, max_age, created_at) = match &invite.metadata {
+            Some(metadata) => (
+                metadata.uses,
+                metadata.max_uses,
+                metadata.max_age,
+                metadata.created_at.unix_timestamp(),
+            ),
+            None => (0, 0, 0, 0),
+        };
         if let Err(e) = sqlx::query(
             "INSERT INTO invites (created_at, guild, inviter, max_age, max_usages, code, uses) \
              VALUES ($1, $2, $3, $4, $5, $6, $7) \
              ON CONFLICT (code) DO UPDATE SET uses = EXCLUDED.uses",
         )
-        .bind(invite.created_at.unix_timestamp())
+        .bind(created_at)
         .bind(guild_id)
         .bind(inviter_id)
-        .bind(invite.max_age as i32)
-        .bind(invite.max_uses as i32)
-        .bind(&invite.code)
-        .bind(invite.uses as i64)
+        .bind(max_age as i32)
+        .bind(max_uses as i32)
+        .bind(invite.code.as_str())
+        .bind(uses as i64)
         .execute(&self.pool)
         .await
         {
@@ -76,7 +80,7 @@ impl Handler {
                 .embeds
                 .iter()
                 .filter_map(|embed| embed.thumbnail.as_ref())
-                .map(|thumbnail| thumbnail.url.clone()),
+                .map(|thumbnail| thumbnail.url.to_string()),
         );
 
         if urls.is_empty() {
@@ -148,18 +152,23 @@ impl Handler {
         // Primary signal: an invite that still exists had its use count go up.
         let mut used: Option<UsedInvite> = None;
         for invite in &current {
-            let prev_uses = stored.get(&invite.code).map(|s| s.0).unwrap_or(0);
-            if invite.uses as i64 > prev_uses {
+            let current_uses = invite.metadata.as_ref().map(|m| m.uses).unwrap_or(0);
+            let prev_uses = stored.get(invite.code.as_str()).map(|s| s.0).unwrap_or(0);
+            if current_uses as i64 > prev_uses {
                 used = Some(UsedInvite {
                     code: invite.code.to_string(),
-                    uses: invite.uses,
+                    uses: current_uses,
                     inviter_id: invite.inviter.as_ref().map(|u| u.id.get()).unwrap_or(0),
                     inviter_name: invite
                         .inviter
                         .as_ref()
                         .map(|u| u.name.to_string())
                         .unwrap_or_else(|| "unknown".to_string()),
-                    created_at: invite.created_at.unix_timestamp(),
+                    created_at: invite
+                        .metadata
+                        .as_ref()
+                        .map(|m| m.created_at.unix_timestamp())
+                        .unwrap_or(0),
                 });
                 break;
             }
@@ -248,7 +257,7 @@ impl EventHandler for Handler {
                 }
 
                 // initialize invites
-                match guild.invites(&ctx).await {
+                match guild.id.invites(&ctx.http).await {
                     Ok(existing) => {
                         for invite in existing.iter() {
                             self.upsert_invite(guild.id.get() as i64, invite).await;
@@ -261,7 +270,10 @@ impl EventHandler for Handler {
                 init_audit_log(guild.id, &ctx, &self.pool).await;
             }
             FullEvent::GuildMemberAddition { new_member, .. } => {
-                let now = new_member.joined_at();
+                let now = new_member
+                    .joined_at
+                    .map(|ts| ts.unix_timestamp())
+                    .unwrap_or_else(|| OffsetDateTime::now_utc().unix_timestamp());
 
                 // Upsert the member. On a rejoin we bump join_amount but keep the previous last_join value
                 // in the RETURNING row so we can update it to "now" afterwards.
@@ -310,7 +322,7 @@ impl EventHandler for Handler {
                 member_data_if_available: _,
                 ..
             } => {
-                og::debug!("Member {} left", user.name);
+                log::debug!("Member {} left", user.name);
 
                 let result = sqlx::query(
                     "SELECT last_join, join_amount FROM joined_member WHERE user_id = $1",
@@ -330,14 +342,16 @@ impl EventHandler for Handler {
 
                 let entry = get_ban_or_kick_event(guild_id, &user.id, &ctx, &self.pool).await;
 
-                let admin = if let Some(entry) = &entry {
-                    entry.user_id.to_user(&ctx).await.ok()
-                } else {
-                    None
+                let admin = match &entry {
+                    Some(entry) => match entry.user_id {
+                        Some(admin_id) => admin_id.to_user(&ctx).await.ok(),
+                        None => None,
+                    },
+                    None => None,
                 };
 
                 let msg = messages::invites::build_leave_message(
-                    user,
+                    &user,
                     last_join,
                     join_amount,
                     admin,
@@ -371,7 +385,7 @@ impl EventHandler for Handler {
         .bind(id as i64)
         .bind(data.max_age as i32)
         .bind(data.max_uses as i32)
-        .bind(&data.code)
+        .bind(data.code.as_str())
         .bind(data.uses as i64)
         .execute(&self.pool)
         .await
@@ -383,14 +397,14 @@ impl EventHandler for Handler {
                 send_message(msg, &ctx, self.config.join_leave_channel).await;
             }
             FullEvent::Message { new_message, .. } => {
-                let attachments_string = self.format_attachments(&new_message);
-                let stickers_string = self.format_stickers(&new_message);
+                let attachments_string = self.format_attachments(new_message);
+                let stickers_string = self.format_stickers(new_message);
 
-                let content = new_message.content;
+                let content = new_message.content.as_str();
 
                 if let Err(e) = sqlx::query(
                     "INSERT INTO messages (id, user_id, message, attachments, stickers) \
-             VALUES ($1, $2, $3, $4, $5)",
+              VALUES ($1, $2, $3, $4, $5)",
                 )
                 .bind(new_message.id.get() as i64)
                 .bind(new_message.author.id.get() as i64)
@@ -408,13 +422,11 @@ impl EventHandler for Handler {
                 event,
                 ..
             } => {
-                let Some(guild) = event.guild_id else {
+                let Some(guild) = event.message.guild_id else {
                     return;
                 };
 
-                if let Some(author) = &event.author
-                    && author.bot
-                {
+                if event.message.author.bot() {
                     return;
                 }
 
@@ -433,8 +445,8 @@ impl EventHandler for Handler {
             RETURNING \
                m.user_id, OLD.message, OLD.edits",
                 )
-                .bind(event.id.get() as i64)
-                .bind(&event.content)
+                .bind(event.message.id.get() as i64)
+                .bind(event.message.content.as_str())
                 .fetch_optional(&self.pool)
                 .await;
 
@@ -451,15 +463,15 @@ impl EventHandler for Handler {
                 let old_message: Option<String> = result.get(1);
                 let edits: i32 = result.get(2);
 
-                if let Some(new_message) = event.content
-                    && let Some(old_message) = old_message
-                {
+                if let Some(old_message) = old_message {
+                    let new_message = event.message.content.as_str();
+
                     if old_message.is_empty() || new_message.starts_with(old_message.as_str()) {
                         // If the message has no content or does not remove any content, there's no point in logging
                         return;
                     }
                     let similarity = levenshtein_limit(
-                        new_message.as_str(),
+                        new_message,
                         old_message.as_str(),
                         self.config.edited_msg_distance,
                     );
@@ -469,12 +481,17 @@ impl EventHandler for Handler {
                     }
 
                     let msg = messages::messages::build_edited_message(
-                        event.author,
+                        Some(event.message.author.clone()),
                         UserId::new(user_id as u64),
-                        event.channel_id.to_channel(&ctx).await.ok(),
-                        event.channel_id,
+                        event
+                            .message
+                            .channel_id
+                            .to_channel(&ctx, Some(guild))
+                            .await
+                            .ok(),
+                        event.message.channel_id,
                         guild,
-                        event.id,
+                        event.message.id,
                         old_message,
                         edits,
                     );
@@ -534,7 +551,10 @@ impl EventHandler for Handler {
 
                 let (deleter_id, deleter_user) = if let Some(entry) = entry {
                     let deleter_id = entry.user_id;
-                    let deleter_user = deleter_id.to_user(&ctx).await.ok();
+                    let deleter_user = match deleter_id {
+                        Some(id) => id.to_user(&ctx).await.ok(),
+                        None => None,
+                    };
 
                     // If the message was not cached and we don't have the user_id, get it from the audit log instead
                     if user_id.is_none()
@@ -548,7 +568,7 @@ impl EventHandler for Handler {
                 } else {
                     // Ignore bots only if the message is deleted by the bot itself
                     if let Some(user) = &user
-                        && user.bot
+                        && user.bot()
                     {
                         return;
                     }
@@ -561,10 +581,13 @@ impl EventHandler for Handler {
                     user_id,
                     deleter_user,
                     deleter_id,
-                    channel_id.to_channel(&ctx.http, Some(*guild_id)).await.ok(),
-                    channel_id,
-                    guild_id,
-                    deleted_message_id,
+                    channel_id
+                        .to_channel(&ctx.http, Some(*guild_id))
+                        .await
+                        .ok(),
+                    *channel_id,
+                    *guild_id,
+                    *deleted_message_id,
                     content,
                     attachments,
                     stickers,
@@ -585,13 +608,13 @@ impl EventHandler for Handler {
                     return;
                 };
 
-                if deleted_messages_ids.is_empty() {
+                if multiple_deleted_messages_ids.is_empty() {
                     return;
                 }
 
-                let count = deleted_messages_ids.len();
+                let count = multiple_deleted_messages_ids.len();
 
-                let ids: Vec<i64> = deleted_messages_ids
+                let ids: Vec<i64> = multiple_deleted_messages_ids
                     .iter()
                     .map(|id| id.get() as i64)
                     .collect();
@@ -647,7 +670,7 @@ impl EventHandler for Handler {
                 let msg = messages::messages::build_bulk_delete_message(
                     messages_with_user,
                     channel_id.to_channel(&ctx.http, *guild_id).await.ok(),
-                    channel_id,
+                    *channel_id,
                     count,
                 );
 
@@ -656,42 +679,60 @@ impl EventHandler for Handler {
             FullEvent::GuildAuditLogEntryCreate {
                 entry, guild_id, ..
             } => {
-                let user = entry.user_id.to_user(&ctx).await.ok();
+                let user = match entry.user_id {
+                    Some(user_id) => user_id.to_user(&ctx).await.ok(),
+                    None => None,
+                };
 
-                let msg = match &entry.action {
+                let msg = match entry.action {
                     Action::GuildUpdate => return,
                     Action::Channel(_) | Action::Thread(_) => {
-                        messages::channel::build_channel_message(&entry, user, &guild_id &ctx).await
+                        messages::channel::build_channel_message(entry, user, guild_id, &ctx).await
                     }
                     Action::ChannelOverwrite(_) => {
-                        messages::channel::build_permission_override_message(entry, user, &ctx)
-                            .await
+                        messages::channel::build_permission_override_message(
+                            entry.clone(),
+                            user,
+                            guild_id,
+                            &ctx,
+                        )
+                        .await
                     }
                     Action::Role(_) => {
-                        messages::roles::build_role_message(entry, user, guild_id, &ctx).await
+                        messages::roles::build_role_message(entry.clone(), user, *guild_id, &ctx)
+                            .await
                     }
                     Action::Member(MemberAction::Prune) => {
-                        messages::member::build_purge_message(entry, user)
+                        messages::member::build_purge_message(entry.clone(), user)
                     }
                     Action::Member(MemberAction::BanRemove) => {
-                        messages::member::build_unban_message(entry, user, &ctx).await
+                        messages::member::build_unban_message(entry.clone(), user, &ctx).await
                     }
                     Action::Member(MemberAction::RoleUpdate) => {
-                        messages::member::build_role_change_message(entry, user, &ctx).await
+                        messages::member::build_role_change_message(entry.clone(), user, &ctx).await
                     }
                     Action::Member(MemberAction::Update) => {
-                        messages::member::build_member_update_message(entry, user, &ctx).await
+                        messages::member::build_member_update_message(entry.clone(), user, &ctx)
+                            .await
                     }
                     Action::Member(MemberAction::BotAdd) => {
-                        messages::member::build_bot_message(entry, user, &ctx).await
+                        messages::member::build_bot_message(entry.clone(), user, &ctx).await
                     }
                     Action::AutoMod(_) => {
-                        messages::automod::build_automod_message(entry, user, guild_id, &ctx).await
+                        messages::automod::build_automod_message(
+                            entry.clone(),
+                            user,
+                            *guild_id,
+                            &ctx,
+                        )
+                        .await
                     }
                     Action::Sticker(_) => {
-                        messages::sticker::build_sticker_message(entry, user, &ctx).await
+                        messages::sticker::build_sticker_message(entry.clone(), user, &ctx).await
                     }
-                    Action::Emoji(_) => messages::sticker::build_emoji_message(entry, user),
+                    Action::Emoji(_) => {
+                        messages::sticker::build_emoji_message(entry.clone(), user)
+                    }
 
                     // TODO
                     Action::Webhook(_) => return,
@@ -798,7 +839,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         | GatewayIntents::GUILD_MESSAGES;
 
     let mut client = Client::builder(token, intents)
-        .event_handler(handler)
+        .event_handler(Arc::new(handler))
         .await?;
 
     client.start().await?;

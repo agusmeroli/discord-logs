@@ -17,7 +17,7 @@ pub async fn build_role_change_message(
     entry: AuditLogEntry,
     admin: Option<User>,
     ctx: &Context,
-) -> Option<CreateMessage> {
+) -> Option<CreateMessage<'static>> {
     if let Some(admin) = &admin
         && admin.bot()
     {
@@ -103,7 +103,7 @@ pub async fn build_role_change_message(
     Some(CreateMessage::new().embed(embed))
 }
 
-pub fn build_purge_message(entry: AuditLogEntry, user: Option<User>) -> Option<CreateMessage> {
+pub fn build_purge_message(entry: AuditLogEntry, user: Option<User>) -> Option<CreateMessage<'static>> {
     let Some(options) = entry.options else {
         return None;
     };
@@ -141,7 +141,7 @@ pub async fn build_bot_message(
     entry: AuditLogEntry,
     user: Option<User>,
     ctx: &Context,
-) -> Option<CreateMessage> {
+) -> Option<CreateMessage<'static>> {
     let Some(user_id) = entry.user_id else {
         return None;
     };
@@ -176,7 +176,7 @@ pub async fn build_unban_message(
     entry: AuditLogEntry,
     admin: Option<User>,
     ctx: &Context,
-) -> Option<CreateMessage> {
+) -> Option<CreateMessage<'static>> {
     let Some(admin_id) = entry.user_id else {
         return None;
     };
@@ -211,7 +211,7 @@ pub async fn build_member_update_message(
     entry: AuditLogEntry,
     admin: Option<User>,
     ctx: &Context,
-) -> Option<CreateMessage> {
+) -> Option<CreateMessage<'static>> {
     let Some(target_id) = entry.target_id else {
         return None;
     };
@@ -266,7 +266,7 @@ fn format_member_changes(
     changes: Vec<Change>,
     user_string: String,
     admin_string: String,
-) -> CreateEmbed {
+) -> CreateEmbed<'static> {
     let changes = changes
         .iter()
         .filter_map(format_member_change)
@@ -287,7 +287,7 @@ fn build_timeout_message(
     user_string: String,
     admin_string: String,
     reason: Option<FixedString>,
-) -> CreateEmbed {
+) -> CreateEmbed<'static> {
     let now = now.unix_timestamp();
 
     let (description, title, colour) = match (old, new) {
@@ -336,7 +336,7 @@ fn build_mute_message(
     new: &Option<bool>,
     user_string: String,
     admin_string: Option<String>,
-) -> CreateEmbed {
+) -> CreateEmbed<'static> {
     let (action, colour) = match (old, new) {
         (_, Some(true)) => (format!("{action}"), Colour::new(0xFF0000)),
         (Some(true), _) => (format!("un-{action}"), Colour::new(0x00FF00)),
@@ -363,7 +363,7 @@ fn build_username_change(
     user_string: String,
     admin_string: Option<String>,
     user: &Option<User>,
-) -> CreateEmbed {
+) -> CreateEmbed<'static> {
     let description = match admin_string {
         Some(admin_string) => format!("{admin_string} **changed nickname for** {user_string}**:**"),
         _ => format!("{user_string} **changed their nickname:**"),
@@ -383,19 +383,19 @@ fn build_username_change(
         && new.is_some()
         && let Some(globalname) = globalname
     {
-        embed = embed.field("Global name:", globalname, false);
+        embed = embed.field("Global name:", globalname.to_string(), false);
     }
 
     if let Some(old) = old {
-        embed = embed.field("Old:", *old, true);
+        embed = embed.field("Old:", old.to_string(), true);
     } else if let Some(globalname) = globalname {
-        embed = embed.field("Old (Globalname):", globalname, true);
+        embed = embed.field("Old (Globalname):", globalname.to_string(), true);
     }
 
     if let Some(new) = new {
-        embed = embed.field("New:", *new, true);
+        embed = embed.field("New:", new.to_string(), true);
     } else if let Some(globalname) = globalname {
-        embed = embed.field("New (Globalname):", globalname, true);
+        embed = embed.field("New (Globalname):", globalname.to_string(), true);
     }
 
     embed

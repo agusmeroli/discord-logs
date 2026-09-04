@@ -1,6 +1,6 @@
 use serenity::{all::{
     AuditLogEntry, Change, Channel, ChannelAction, ChannelFlags, ChannelId, ChannelOverwriteAction, ChannelType, Colour, Context, CreateEmbed, CreateMessage, EntityType, GuildId, PermissionOverwrite, PermissionOverwriteType, Permissions, ThreadAction, User, UserId, audit_log::Action,
-}, model::guild};
+}};
 
 use crate::{
     find_change, format_boolean_change, format_numeric_change, format_numeric_change_operation,
@@ -14,7 +14,7 @@ pub async fn build_channel_message(
     user: Option<User>,
     guild_id: &GuildId,
     ctx: &Context,
-) -> Option<CreateMessage> {
+) -> Option<CreateMessage<'static>> {
     let Some(target_id) = entry.target_id else {
         return None;
     };
@@ -26,10 +26,14 @@ pub async fn build_channel_message(
     let user_str = format_user(&user, user_id);
 
     let channel_id = ChannelId::new(target_id.get());
-    let channel = channel_id.to_guild_channel(&ctx.http, Some(guild_id)).await.ok();
-    let channel_str = format_channel(&channel, channel_id);
+    let channel = channel_id.to_guild_channel(&ctx.http, Some(*guild_id)).await.ok();
 
-    let channel_type = channel.base.kind.name().replace("_", " ");
+    let channel_type = channel
+        .as_ref()
+        .map(|c| c.base.kind.name().replace("_", " "))
+        .unwrap_or_else(|| "channel".to_string());
+
+    let channel_str = format_channel(&channel.map(Channel::Guild), channel_id);
 
 
     let (action, colour) = match entry.action {
@@ -81,7 +85,7 @@ pub async fn build_permission_override_message(
     user: Option<User>,
     guild_id: &GuildId,
     ctx: &Context,
-) -> Option<CreateMessage> {
+) -> Option<CreateMessage<'static>> {
     let Some(target_id) = entry.target_id else {
         log::error!("No target channel id provided");
         return None;
@@ -103,7 +107,7 @@ pub async fn build_permission_override_message(
 
     let channel_id = ChannelId::new(target_id.get());
     let channel = channel_id.to_guild_channel(&ctx, Some(*guild_id)).await.ok();
-    let channel = format_channel(&channel, channel_id);
+    let channel = format_channel(&channel.map(Channel::Guild), channel_id);
 
     let permission_target_string = if let Some(role_name) = options.role_name {
         if role_name == "@everyone" {
@@ -158,7 +162,7 @@ pub async fn build_permission_override_message(
 
 fn build_channel_change_line(change: &Change) -> Option<String> {
     Some(match change {
-        Change::UserLimit { old, new } => format_numeric_change!("User limit", "", old.get(), new.get()),
+        Change::UserLimit { old, new } => format_numeric_change!("User limit", "", old.map(|v| v.get()), new.map(|v| v.get())),
         Change::RateLimitPerUser { old, new } => format_numeric_change!("Slowmode", "s", old, new),
         Change::Name { old, new } => format_string_change!("Name", old, new),
         Change::Topic { old, new } => format_string_change!("Description", old, new),
@@ -171,7 +175,7 @@ fn build_channel_change_line(change: &Change) -> Option<String> {
             format_numeric_change_operation!("Archive duration", old, new, |v| format!("`{}h`", v / 60))
         }
         Change::Bitrate { old, new } => {
-            format_numeric_change_operation!("Bitrate", old, new, |v| ormat!("`{}kbps`", v / 1000))
+            format_numeric_change_operation!("Bitrate", old, new, |v| format!("`{}kbps`", v / 1000))
         }
 
         Change::Type { old, new } => match (old, new) {
@@ -204,7 +208,9 @@ fn build_channel_change_line(change: &Change) -> Option<String> {
 fn format_channel_type(entity_type: &EntityType) -> String {
     match entity_type {
         EntityType::Str(entity_type) => entity_type.to_string(),
-        EntityType::Int(entity_type) => ChannelType::from(*entity_type).name().to_string(),
+        EntityType::Int(entity_type) => {
+            ChannelType::Unknown(*entity_type as u8).name().to_string()
+        }
         _ => "unknown".to_string(),
     }
 }
