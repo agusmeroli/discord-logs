@@ -103,7 +103,10 @@ pub async fn build_role_change_message(
     Some(CreateMessage::new().embed(embed))
 }
 
-pub fn build_purge_message(entry: AuditLogEntry, user: Option<User>) -> Option<CreateMessage<'static>> {
+pub fn build_purge_message(
+    entry: AuditLogEntry,
+    user: Option<User>,
+) -> Option<CreateMessage<'static>> {
     let Some(options) = entry.options else {
         return None;
     };
@@ -250,10 +253,18 @@ pub async fn build_member_update_message(
             Change::Nick { old, new } => {
                 build_username_change(old, new, user_string, admin_string, &user)
             }
-            _ => format_member_changes(entry.changes, user_string, admin_string.unwrap_or(String::new())),
+            _ => format_member_changes(
+                entry.changes,
+                user_string,
+                admin_string.unwrap_or(String::new()),
+            ),
         }
     } else {
-        format_member_changes(entry.changes, user_string, admin_string.unwrap_or(String::new()))
+        format_member_changes(
+            entry.changes,
+            user_string,
+            admin_string.unwrap_or(String::new()),
+        )
     };
 
     let embed_author = build_embed_author_admin(&user, user_id, &admin);

@@ -1,12 +1,12 @@
-use serenity::all::{
-    AuditLogEntry, AutoModAction, Change, ChannelId, Colour, Context, CreateEmbed, CreateMessage,
-    GuildId, RoleId, RuleId, User, audit_log::Action,
-};
-
 use crate::{
     find_change, format_boolean_change, format_string_change,
     messages::utils::{build_embed_author, format_user, get_name},
 };
+use serenity::all::{
+    AuditLogEntry, AutoModAction, Change, ChannelId, Colour, Context, CreateEmbed, CreateMessage,
+    GuildId, RoleId, RuleId, User, audit_log::Action,
+};
+use std::fmt::Write;
 
 pub async fn build_automod_message(
     entry: AuditLogEntry,
@@ -75,7 +75,7 @@ fn build_automod_change_line(change: &Change) -> Option<String> {
         Change::Name { old, new } => format_string_change!("Name", old, new),
         Change::Enabled { old, new } => format_boolean_change!("Enabled", old, new),
         /*Change::Other {
-            name,
+            key,
             old_value: _,
             new_value: Some(value),
         } => {
@@ -84,37 +84,39 @@ fn build_automod_change_line(change: &Change) -> Option<String> {
                 return None;
             };
 
-            let label = match name.as_str() {
+            let label = match key.as_str() {
                 "$add_keyword_filter" => "Added words",
                 "$remove_keyword_filter" => "Removed words",
                 "$add_regex_patterns" => "Added regex",
                 "$remove_regex_patterns" => "Removed regex",
                 "$add_allow_list" => "Added allowed words",
                 "$remove_allow_list" => "Removed allowed words",
-                _ => return Some(name.to_string())
+                _ => return Some(key.to_string())
             };
 
             format_keyword_change(label, list)
         }*/
         Change::ExemptRoles { old, new } => {
-            let mut res = Vec::new();
+            let mut res = String::new();
             if let Some(old) = old {
-                res.extend(format_role_list("Removed exempt roles", old));
+                res.push_str(&format_role_list("Removed exempt roles", old));
             }
             if let Some(new) = new {
-                res.extend(format_role_list("Added exempt roles", new));
+                res.push_str(&format_role_list("Added exempt roles", new));
             }
-            res.join("\n")
+            res.pop();
+            res
         }
         Change::ExemptChannels { old, new } => {
-            let mut res = Vec::new();
+            let mut res = String::new();
             if let Some(old) = old {
-                res.extend(format_channel_list("Removed exempt channels", old));
+                res.push_str(&format_channel_list("Removed exempt channels", old));
             }
             if let Some(new) = new {
-                res.extend(format_channel_list("Added exempt channels", new));
+                res.push_str(&format_channel_list("Added exempt channels", new));
             }
-            res.join("\n")
+            res.pop();
+            res
         }
         // TODO
         //Change::Actions { old, new } => return None,
@@ -123,31 +125,29 @@ fn build_automod_change_line(change: &Change) -> Option<String> {
 }
 
 /*fn format_keyword_change(label: &str, changes: Vec<String>) -> String {
-    let mut res = Vec::new();
-    res.push(format!("- **{label}:**"));
-
-    for change in changes {
-        res.push(format!("  - `{change}`"));
-    }
-    res.join("\n")
-}*/
-
-fn format_channel_list(label: &str, channels: &[ChannelId]) -> Vec<String> {
-    let mut res = Vec::new();
-    res.push(format!("- **{label}:**"));
+    let mut res = format!("- **{label}:**\n");
 
     for channel in channels {
-        res.push(format!("  - <#{channel}>"));
+        writeln!(&mut res, "  -`{change}`").unwrap();
+    }
+    res.pop();
+    res
+}*/
+
+fn format_channel_list(label: &str, channels: &[ChannelId]) -> String {
+    let mut res = format!("- **{label}:**\n");
+
+    for channel in channels {
+        writeln!(&mut res, "  - <#{channel}>").unwrap();
     }
     res
 }
 
-fn format_role_list(label: &str, roles: &[RoleId]) -> Vec<String> {
-    let mut res = Vec::new();
-    res.push(format!("- **{label}:**"));
+fn format_role_list(label: &str, roles: &[RoleId]) -> String {
+    let mut res = format!("- **{label}:**\n");
 
     for role in roles {
-        res.push(format!("  - <@!{role}>"));
+        writeln!(&mut res, "  - <@!{role}>").unwrap();
     }
     res
 }

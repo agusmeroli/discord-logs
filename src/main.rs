@@ -581,10 +581,7 @@ impl EventHandler for Handler {
                     user_id,
                     deleter_user,
                     deleter_id,
-                    channel_id
-                        .to_channel(&ctx.http, Some(*guild_id))
-                        .await
-                        .ok(),
+                    channel_id.to_channel(&ctx.http, Some(*guild_id)).await.ok(),
                     *channel_id,
                     *guild_id,
                     *deleted_message_id,
@@ -730,9 +727,7 @@ impl EventHandler for Handler {
                     Action::Sticker(_) => {
                         messages::sticker::build_sticker_message(entry.clone(), user, &ctx).await
                     }
-                    Action::Emoji(_) => {
-                        messages::sticker::build_emoji_message(entry.clone(), user)
-                    }
+                    Action::Emoji(_) => messages::sticker::build_emoji_message(entry.clone(), user),
 
                     // TODO
                     Action::Webhook(_) => return,

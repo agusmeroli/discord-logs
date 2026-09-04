@@ -2,6 +2,7 @@ use serenity::all::{
     AuditLogEntry, Change, Colour, Context, CreateEmbed, CreateMessage, GuildId, Permissions,
     RoleAction, RoleId, User, audit_log::Action,
 };
+use std::fmt::Write;
 
 use crate::{
     format_boolean_change, format_generic_change, format_string_change,
@@ -23,12 +24,6 @@ pub async fn build_role_message(
         return None;
     };
 
-    let user_str = format_user(&user, admin_id);
-
-    let role_id = RoleId::new(target_id.get());
-    let role = guild_id.role(&ctx.http, role_id).await.ok();
-    let role_str = format_role(&role, role_id);
-
     let (action, colour) = match entry.action {
         Action::Role(RoleAction::Create) => ("created", Colour::new(0x00FF00)),
         Action::Role(RoleAction::Delete) => ("deleted", Colour::new(0xFF0000)),
@@ -42,6 +37,16 @@ pub async fn build_role_message(
         }
     };
 
+    let user_str = format_user(&user, admin_id);
+
+    let action_string = if target_id.get() == guild_id.get() {
+        "**updated permisisons for** @everyone".to_string()
+    } else {
+        let role_id = RoleId::new(target_id.get());
+        let role = guild_id.role(&ctx.http, role_id).await.ok();
+        format!("**{action} role** {}", format_role(&role, role_id))
+    };
+
     let changes = entry
         .changes
         .iter()
@@ -50,7 +55,7 @@ pub async fn build_role_message(
         .join("\n");
 
     let embed_author = build_embed_author(&user, admin_id);
-    let message = format!("{user_str} **{action} role** {role_str}\n\n{changes}");
+    let message = format!("{user_str} {action_string}\n\n{changes}");
     let title = format!("ROLE {}", action.to_uppercase());
 
     let embed = CreateEmbed::new()
@@ -74,7 +79,7 @@ fn build_role_change_line(change: &Change) -> Option<String> {
         }
 
         Change::Permissions { old, new } => match (old, new) {
-            (Some(old), Some(new)) => return format_permission_change(old, new),
+            (Some(old), Some(new)) => format_permission_change(old, new),
             (None, Some(new)) => format_permission(new),
             (Some(old), None) => format_permission(old),
             _ => return None,
@@ -97,40 +102,36 @@ fn build_role_change_line(change: &Change) -> Option<String> {
     })
 }
 
-fn format_permission_change(old: &Permissions, new: &Permissions) -> Option<String> {
+fn format_permission_change(old: &Permissions, new: &Permissions) -> String {
     let new = *new;
     let perms_difference = *old ^ new;
 
-    let mut result = Vec::new();
-
-    result.push("- **Permissions:**".to_string());
+    let mut result = "- **Permissions:**\n ".to_string();
 
     for perm in perms_difference.iter() {
-        result.push(format!(
+        writeln!(
+            &mut result,
             "  - {perm}: {}",
             if perm.intersects(new) { "✅" } else { "`╱`" }
-        ));
+        )
+        .unwrap();
     }
 
-    if result.is_empty() {
-        return None;
-    }
-
-    Some(result.join("\n"))
+    result.pop();
+    result
 }
 
 fn format_permission(perm: &Permissions) -> String {
-    let mut result = Vec::new();
-
-    result.push("- **Permissions:**".to_string());
-
-    for perm in perm.iter() {
-        result.push(format!("  - {perm}: ✅"));
-    }
-
-    if result.is_empty() {
+    if perm.is_empty() {
         return "- **Permissions:** *none*".to_string();
     }
 
-    result.join("\n")
+    let mut result = "- **Permissions:**\n".to_string();
+
+    for perm in perm.iter() {
+        writeln!(&mut result, "  - {perm}: ✅").unwrap();
+    }
+
+    result.pop();
+    result
 }

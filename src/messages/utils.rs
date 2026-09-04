@@ -2,8 +2,8 @@ use std::fmt::Display;
 
 use serenity::{
     all::{
-        Change, Channel, ChannelId, Context, CreateEmbedAuthor, CreateMessage, Role, RoleId, User,
-        UserId,
+        Change, Channel, ChannelId, Context, CreateEmbedAuthor, CreateMessage, GuildId, Role,
+        RoleId, User, UserId,
     },
     small_fixed_array::FixedString,
 };
@@ -11,11 +11,7 @@ use tokio::time::{Duration, sleep};
 
 const MSG_RETRY_INTERVAL: Duration = Duration::from_millis(200);
 
-pub async fn send_message(
-    message: CreateMessage<'static>,
-    ctx: &Context,
-    channel_id: ChannelId,
-) {
+pub async fn send_message(message: CreateMessage<'static>, ctx: &Context, channel_id: ChannelId) {
     if let Err(_) = channel_id
         .widen()
         .send_message(&ctx.http, message.clone())

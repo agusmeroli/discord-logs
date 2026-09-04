@@ -1,6 +1,7 @@
 use serenity::all::audit_log::Action;
 use serenity::all::{
-    AuditLogEntry, Colour, CreateEmbed, CreateEmbedAuthor, CreateMessage, InviteCreateEvent, Member, MemberAction, User, UserId,
+    AuditLogEntry, Colour, CreateEmbed, CreateEmbedAuthor, CreateMessage, InviteCreateEvent,
+    Member, MemberAction, User, UserId,
 };
 use time::OffsetDateTime;
 

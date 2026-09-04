@@ -40,11 +40,12 @@ pub async fn build_sticker_message(
         }
     };
 
-    let changes = entry.changes
-            .iter()
-            .filter_map(build_sticker_change_line)
-            .collect::<Vec<_>>()
-            .join("\n");
+    let changes = entry
+        .changes
+        .iter()
+        .filter_map(build_sticker_change_line)
+        .collect::<Vec<_>>()
+        .join("\n");
 
     let embed_author = build_embed_author(&user, user_id);
     let message = format!("{user_str} **{action} a sticker**\n\n{changes}");
@@ -65,7 +66,10 @@ pub async fn build_sticker_message(
     Some(CreateMessage::new().embed(embed))
 }
 
-pub fn build_emoji_message(entry: AuditLogEntry, user: Option<User>) -> Option<CreateMessage<'static>> {
+pub fn build_emoji_message(
+    entry: AuditLogEntry,
+    user: Option<User>,
+) -> Option<CreateMessage<'static>> {
     let Some(emoji_id) = entry.target_id else {
         log::error!("No emoji sticker id provided");
         return None;

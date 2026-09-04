@@ -1,13 +1,16 @@
-use serenity::{all::{
-    AuditLogEntry, Change, Channel, ChannelAction, ChannelFlags, ChannelId, ChannelOverwriteAction, ChannelType, Colour, Context, CreateEmbed, CreateMessage, EntityType, GuildId, PermissionOverwrite, PermissionOverwriteType, Permissions, ThreadAction, User, UserId, audit_log::Action,
-}};
-
 use crate::{
-    find_change, format_boolean_change, format_numeric_change, format_numeric_change_operation,
-    format_string_change,
+    find_change, format_boolean_change, format_generic_change, format_numeric_change,
+    format_numeric_change_operation, format_string_change,
     messages::utils::{build_embed_author, format_channel, format_user},
     unwrap_change,
 };
+use serenity::all::{
+    AuditLogEntry, Change, Channel, ChannelAction, ChannelFlags, ChannelId, ChannelOverwriteAction,
+    ChannelType, Colour, Context, CreateEmbed, CreateMessage, EntityType, GuildId,
+    PermissionOverwrite, PermissionOverwriteType, Permissions, ThreadAction, User, UserId,
+    audit_log::Action,
+};
+use std::fmt::Write;
 
 pub async fn build_channel_message(
     entry: &AuditLogEntry,
@@ -26,7 +29,10 @@ pub async fn build_channel_message(
     let user_str = format_user(&user, user_id);
 
     let channel_id = ChannelId::new(target_id.get());
-    let channel = channel_id.to_guild_channel(&ctx.http, Some(*guild_id)).await.ok();
+    let channel = channel_id
+        .to_guild_channel(&ctx.http, Some(*guild_id))
+        .await
+        .ok();
 
     let channel_type = channel
         .as_ref()
@@ -34,7 +40,6 @@ pub async fn build_channel_message(
         .unwrap_or_else(|| "channel".to_string());
 
     let channel_str = format_channel(&channel.map(Channel::Guild), channel_id);
-
 
     let (action, colour) = match entry.action {
         Action::Channel(ChannelAction::Create) | Action::Thread(ThreadAction::Create) => {
@@ -61,11 +66,12 @@ pub async fn build_channel_message(
         }
     };
 
-    let changes = entry.changes
-            .iter()
-            .filter_map(build_channel_change_line)
-            .collect::<Vec<_>>()
-            .join("\n");
+    let changes = entry
+        .changes
+        .iter()
+        .filter_map(build_channel_change_line)
+        .collect::<Vec<_>>()
+        .join("\n");
 
     let embed_author = build_embed_author(&user, user_id);
     let message = format!("{user_str} **{action} {channel_type}** {channel_str}\n\n{changes}");
@@ -106,11 +112,14 @@ pub async fn build_permission_override_message(
     let user_str = format_user(&user, user_id);
 
     let channel_id = ChannelId::new(target_id.get());
-    let channel = channel_id.to_guild_channel(&ctx, Some(*guild_id)).await.ok();
+    let channel = channel_id
+        .to_guild_channel(&ctx, Some(*guild_id))
+        .await
+        .ok();
     let channel = format_channel(&channel.map(Channel::Guild), channel_id);
 
     let permission_target_string = if let Some(role_name) = options.role_name {
-        if role_name == "@everyone" {
+        if permission_target_id.get() == guild_id.get() {
             "- **Permissions for** @everyone".to_string()
         } else {
             format!("- **Permissions for role** <@&{permission_target_id}>({role_name})")
@@ -162,7 +171,9 @@ pub async fn build_permission_override_message(
 
 fn build_channel_change_line(change: &Change) -> Option<String> {
     Some(match change {
-        Change::UserLimit { old, new } => format_numeric_change!("User limit", "", old.map(|v| v.get()), new.map(|v| v.get())),
+        Change::UserLimit { old, new } => {
+            format_numeric_change!("User limit", "", old.map(|v| v.get()), new.map(|v| v.get()))
+        }
         Change::RateLimitPerUser { old, new } => format_numeric_change!("Slowmode", "s", old, new),
         Change::Name { old, new } => format_string_change!("Name", old, new),
         Change::Topic { old, new } => format_string_change!("Description", old, new),
@@ -172,23 +183,17 @@ fn build_channel_change_line(change: &Change) -> Option<String> {
         Change::Invitable { old, new } => format_boolean_change!("Inviteable", old, new),
 
         Change::DefaultAutoArchiveDuration { old, new } => {
-            format_numeric_change_operation!("Archive duration", old, new, |v| format!("`{}h`", v / 60))
+            format_numeric_change_operation!("Archive duration", old, new, |v| format!(
+                "`{}h`",
+                v / 60
+            ))
         }
         Change::Bitrate { old, new } => {
             format_numeric_change_operation!("Bitrate", old, new, |v| format!("`{}kbps`", v / 1000))
         }
 
-        Change::Type { old, new } => match (old, new) {
-            (Some(old), Some(new)) => format!(
-                "- **Type:** `{}` ➜ `{}`",
-                format_channel_type(old),
-                format_channel_type(new)
-            ),
-            (_, Some(new)) => format!("- **Type:** `{}`", format_channel_type(new)),
-            _ => return None,
-        },
+        Change::Type { old, new } => format_generic_change!("Type", old, new, format_channel_type),
 
-        // TODO
         Change::PermissionOverwrites { old, new } => match (old, new) {
             (_, Some(new)) => format_access_permission(new),
             (Some(old), _) => format_access_permission(old),
@@ -208,9 +213,7 @@ fn build_channel_change_line(change: &Change) -> Option<String> {
 fn format_channel_type(entity_type: &EntityType) -> String {
     match entity_type {
         EntityType::Str(entity_type) => entity_type.to_string(),
-        EntityType::Int(entity_type) => {
-            ChannelType::Unknown(*entity_type as u8).name().to_string()
-        }
+        EntityType::Int(entity_type) => ChannelType::Unknown(*entity_type as u8).name().to_string(),
         _ => "unknown".to_string(),
     }
 }
@@ -226,17 +229,19 @@ fn format_flags_diff(old: &u64, new: &u64) -> Option<String> {
         return None;
     };
 
-    let mut result = Vec::new();
+    let mut result = String::new();
 
     for (name, flag) in changed_flags.iter_names() {
-        result.push(format!("- **{name}**: `{}`", flag.intersects(new_flags)));
+        writeln!(
+            &mut result,
+            "- **{name}**: `{}`",
+            flag.intersects(new_flags)
+        )
+        .unwrap();
     }
 
-    if result.is_empty() {
-        return None;
-    }
-
-    Some(result.join("\n"))
+    result.pop();
+    Some(result)
 }
 
 fn format_flags(flags: &u64) -> Option<String> {
@@ -244,54 +249,63 @@ fn format_flags(flags: &u64) -> Option<String> {
         return None;
     };
 
-    let mut result = Vec::new();
-
-    for (name, _flag) in flags.iter_names() {
-        result.push(format!("- **{name}**: `true`"));
-    }
-
-    if result.is_empty() {
+    if flags.is_empty() {
         return None;
     }
 
-    Some(result.join("\n"))
+    let mut result = String::new();
+
+    for (name, _flag) in flags.iter_names() {
+        writeln!(&mut result, "- **{name}**: `true`").unwrap();
+    }
+
+    // remove the last \n
+    result.pop();
+    Some(result)
 }
 
 fn format_access_permission(permission_overrides: &[PermissionOverwrite]) -> String {
-    let mut result = Vec::new();
-    result.push("- **Access:**".to_string());
+    let mut result = "- **Access:**".to_string();
+
     for permission in permission_overrides {
         let emoji = perm_to_icon(permission.allow, permission.deny, Permissions::VIEW_CHANNEL);
 
-        let permission_line = match permission.kind {
+        match permission.kind {
             PermissionOverwriteType::Role(role_id) => {
-                format!("  - Role <@&{role_id}>: {emoji}")
+                writeln!(&mut result, "  - Role <@&{role_id}>: {emoji}").unwrap();
             }
             PermissionOverwriteType::Member(user_id) => {
-                format!("  - User <@{user_id}>: {emoji}")
+                writeln!(&mut result, "  - User <@{user_id}>: {emoji}").unwrap();
             }
-            _ => "Invalid permission".to_string(),
+            _ => {
+                result.push_str("Invalid permission\n");
+            }
         };
-
-        result.push(permission_line);
     }
-    result.join("\n")
+    result.pop();
+    result
 }
 
 fn format_permission_override(allow: Permissions, deny: Permissions) -> String {
     let combined_perms = allow | deny;
 
-    let mut result = Vec::new();
-
-    for perm in combined_perms.iter() {
-        result.push(format!("  - {perm}: {}", perm_to_icon(allow, deny, perm),));
-    }
-
-    if result.is_empty() {
+    if combined_perms.is_empty() {
         return "  - *none*".to_string();
     }
 
-    result.join("\n")
+    let mut result = String::new();
+
+    for perm in combined_perms.iter() {
+        writeln!(
+            &mut result,
+            "  - {perm}: {}",
+            perm_to_icon(allow, deny, perm),
+        )
+        .unwrap();
+    }
+
+    result.pop();
+    result
 }
 
 fn format_permission_override_change(
@@ -302,21 +316,20 @@ fn format_permission_override_change(
 ) -> String {
     let perms_difference = (old_allow ^ new_allow) | (old_deny ^ new_deny);
 
-    let mut result = Vec::new();
+    let mut result = String::new();
 
     for perm in perms_difference.iter() {
-        result.push(format!(
+        writeln!(
+            &mut result,
             "  - {perm}: {} ➜ {}",
             perm_to_icon(old_allow, old_deny, perm),
             perm_to_icon(new_allow, new_deny, perm),
-        ));
+        )
+        .unwrap();
     }
 
-    if result.is_empty() {
-        return "  - *none*".to_string();
-    }
-
-    result.join("\n")
+    result.pop();
+    result
 }
 
 fn perm_to_icon(allow: Permissions, deny: Permissions, perm: Permissions) -> &'static str {

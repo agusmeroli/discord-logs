@@ -1,7 +1,9 @@
 use serenity::{
     all::{
-        AuditLogEntry, Context, GenericChannelId, GuildId, MemberAction, MessageAction, UserId, audit_log::Action,
-    }, nonmax::NonMaxU8,
+        AuditLogEntry, Context, GenericChannelId, GuildId, MemberAction, MessageAction, UserId,
+        audit_log::Action,
+    },
+    nonmax::NonMaxU8,
 };
 use sqlx::{PgPool, Row};
 
