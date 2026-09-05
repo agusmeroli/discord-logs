@@ -105,7 +105,8 @@ fn build_role_change_line(change: &Change) -> Option<String> {
 }
 
 fn format_permission_change(old: &Permissions, new: &Permissions) -> String {
-    let perms_difference = *old ^ *new;
+    let new = *new;
+    let perms_difference = *old ^ new;
 
     let mut result = "- **Permissions:**\n ".to_string();
 
@@ -113,7 +114,7 @@ fn format_permission_change(old: &Permissions, new: &Permissions) -> String {
         writeln!(
             &mut result,
             "  - {perm}: {}",
-            perm_to_icon(perm, Permissions::empty(), perm)
+            perm_to_icon(new, Permissions::empty(), perm)
         )
         .unwrap();
     }
