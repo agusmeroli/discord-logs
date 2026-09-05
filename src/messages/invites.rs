@@ -122,6 +122,7 @@ pub fn build_leave_message(
     user: &User,
     last_join: Option<i64>,
     join_amount: Option<i32>,
+    message_count: Option<i64>,
     admin: Option<User>,
     entry: Option<AuditLogEntry>,
 ) -> CreateMessage<'static> {
@@ -165,6 +166,12 @@ pub fn build_leave_message(
         None => "*no join record found.*".to_string(),
     };
 
+    let message_count = if let Some(message_count) = message_count {
+        format!("\n**Sent** {message_count} **messages** in the past 30d",)
+    } else {
+        String::new()
+    };
+
     let leave_count = if let Some(join_amount) = join_amount
         && join_amount > 1
     {
@@ -180,7 +187,7 @@ pub fn build_leave_message(
     let embed_description = format!(
         "<@{user_id}> ({username})\
         {event_string}\n\n\
-        {membership}{leave_count}",
+        {membership}{message_count}{leave_count}",
     );
 
     let avatar_url = user.face();

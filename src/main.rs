@@ -30,8 +30,8 @@ use discord_logging::datastructures::UsedInvite;
 use discord_logging::db::initialize_database_pool;
 
 pub struct Handler {
-    config: Arc<Config>,
-    pool: PgPool,
+    pub config: Arc<Config>,
+    pub pool: PgPool,
 }
 
 impl Handler {
@@ -335,8 +335,22 @@ impl EventHandler for Handler {
                     Ok(Some(row)) => (row.get::<Option<i64>, _>(0), row.get::<Option<i32>, _>(1)),
                     Ok(None) => (None, None),
                     Err(e) => {
-                        log::error!("Failed to record member join: {}", e);
-                        return;
+                        log::error!("Failed to read member join record: {}", e);
+                        (None, None)
+                    }
+                };
+
+                let result: Result<i64, sqlx::Error> =
+                    sqlx::query_scalar("SELECT COUNT(*) FROM messages WHERE user_id = $1")
+                        .bind(user.id.get() as i64)
+                        .fetch_one(&self.pool)
+                        .await;
+
+                let message_count = match result {
+                    Ok(value) => Some(value),
+                    Err(e) => {
+                        log::error!("Failed to read member message count: {}", e);
+                        None
                     }
                 };
 
@@ -354,6 +368,7 @@ impl EventHandler for Handler {
                     &user,
                     last_join,
                     join_amount,
+                    message_count,
                     admin,
                     entry,
                 );
