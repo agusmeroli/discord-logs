@@ -359,7 +359,7 @@ fn perm_to_icon(allow: Permissions, deny: Permissions, perm: Permissions) -> &'s
     if perm.intersects(deny) {
         return "❌";
     }
-    "`∕`"
+    "**`∕`**"
 }
 
 fn unwrap_changes(changes: &[Change]) -> String {
