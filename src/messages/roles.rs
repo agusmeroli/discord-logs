@@ -8,7 +8,7 @@ use crate::{
     format_boolean_change, format_generic_change, format_string_change,
     messages::{
         colours::*,
-        utils::{build_embed_author, format_role, format_user},
+        utils::{build_embed_author, format_role, format_user, perm_to_icon},
     },
 };
 
@@ -105,8 +105,7 @@ fn build_role_change_line(change: &Change) -> Option<String> {
 }
 
 fn format_permission_change(old: &Permissions, new: &Permissions) -> String {
-    let new = *new;
-    let perms_difference = *old ^ new;
+    let perms_difference = *old ^ *new;
 
     let mut result = "- **Permissions:**\n ".to_string();
 
@@ -114,7 +113,7 @@ fn format_permission_change(old: &Permissions, new: &Permissions) -> String {
         writeln!(
             &mut result,
             "  - {perm}: {}",
-            if perm.intersects(new) { "✅" } else { "`╱`" }
+            perm_to_icon(perm, Permissions::empty(), perm)
         )
         .unwrap();
     }

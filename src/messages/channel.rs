@@ -3,7 +3,7 @@ use crate::{
     format_numeric_change_operation, format_string_change,
     messages::{
         colours::*,
-        utils::{build_embed_author, format_channel, format_user},
+        utils::{build_embed_author, format_channel, format_user, perm_to_icon},
     },
     unwrap_change,
 };
@@ -350,16 +350,6 @@ fn format_permission_override_change(
 
     result.pop();
     result
-}
-
-fn perm_to_icon(allow: Permissions, deny: Permissions, perm: Permissions) -> &'static str {
-    if perm.intersects(allow) {
-        return "✅";
-    }
-    if perm.intersects(deny) {
-        return "❌";
-    }
-    "**`∕`**"
 }
 
 fn unwrap_changes(changes: &[Change]) -> String {

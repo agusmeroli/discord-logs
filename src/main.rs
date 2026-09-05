@@ -4,7 +4,6 @@ use discord_logging::audit_log::{
 use discord_logging::config::Config;
 use discord_logging::db::purge_thread;
 use discord_logging::messages;
-use discord_logging::messages::utils::send_message;
 use log::LevelFilter;
 use log4rs::append::console::ConsoleAppender;
 use log4rs::append::rolling_file::{
@@ -17,14 +16,18 @@ use log4rs::config::{Appender, Config as LogConfig, Logger, Root};
 use log4rs::encode::pattern::PatternEncoder;
 use serenity::Client;
 use serenity::all::audit_log::Action;
-use serenity::all::{Context, FullEvent, GuildId, Invite, MemberAction, Message, UserId};
+use serenity::all::{
+    ChannelId, Context, CreateMessage, FullEvent, GuildId, Invite, MemberAction, Message, UserId,
+};
 use serenity::futures::StreamExt;
 use serenity::prelude::{EventHandler, GatewayIntents};
 use sqlx::{PgPool, Row};
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
+use std::time::Duration;
 use stringmetrics::levenshtein_limit;
 use time::OffsetDateTime;
+use tokio::time::sleep;
 
 use discord_logging::datastructures::UsedInvite;
 use discord_logging::db::initialize_database_pool;
@@ -32,6 +35,26 @@ use discord_logging::db::initialize_database_pool;
 pub struct Handler {
     pub config: Arc<Config>,
     pub pool: PgPool,
+}
+
+const MSG_RETRY_INTERVAL: Duration = Duration::from_millis(200);
+
+pub async fn send_message(message: CreateMessage<'static>, ctx: &Context, channel_id: ChannelId) {
+    if let Err(_) = channel_id
+        .widen()
+        .send_message(&ctx.http, message.clone())
+        .await
+    {
+        sleep(MSG_RETRY_INTERVAL).await;
+
+        if let Err(e) = channel_id.widen().send_message(&ctx.http, message).await {
+            log::error!(
+                "Unable to send message to channel {} after retry: {}",
+                channel_id,
+                e
+            );
+        }
+    }
 }
 
 impl Handler {

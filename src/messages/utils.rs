@@ -1,33 +1,9 @@
 use std::fmt::Display;
 
 use serenity::{
-    all::{
-        Change, Channel, ChannelId, Context, CreateEmbedAuthor, CreateMessage, Role, RoleId, User,
-        UserId,
-    },
+    all::{Change, Channel, CreateEmbedAuthor, Permissions, Role, RoleId, User, UserId},
     small_fixed_array::FixedString,
 };
-use tokio::time::{Duration, sleep};
-
-const MSG_RETRY_INTERVAL: Duration = Duration::from_millis(200);
-
-pub async fn send_message(message: CreateMessage<'static>, ctx: &Context, channel_id: ChannelId) {
-    if let Err(_) = channel_id
-        .widen()
-        .send_message(&ctx.http, message.clone())
-        .await
-    {
-        sleep(MSG_RETRY_INTERVAL).await;
-
-        if let Err(e) = channel_id.widen().send_message(&ctx.http, message).await {
-            log::error!(
-                "Unable to send message to channel {} after retry: {}",
-                channel_id,
-                e
-            );
-        }
-    }
-}
 
 pub fn build_embed_author(user: &Option<User>, user_id: UserId) -> CreateEmbedAuthor<'static> {
     match (user, user_id) {
@@ -228,4 +204,14 @@ pub fn get_name(change: Option<&Change>) -> Option<&str> {
         }) => old.as_str(),
         _ => return None,
     })
+}
+
+pub fn perm_to_icon(allow: Permissions, deny: Permissions, perm: Permissions) -> &'static str {
+    if perm.intersects(allow) {
+        return "✅";
+    }
+    if perm.intersects(deny) {
+        return "❌";
+    }
+    "**`∕`**"
 }
