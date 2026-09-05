@@ -8,10 +8,9 @@ use crate::{
     unwrap_change,
 };
 use serenity::all::{
-    AuditLogEntry, Change, Channel, ChannelAction, ChannelFlags, ChannelId, ChannelOverwriteAction,
-    ChannelType, Context, CreateEmbed, CreateMessage, EntityType, GuildId, PermissionOverwrite,
-    PermissionOverwriteType, Permissions, ThreadAction, User, UserId, audit_log::Action,
+    AuditLogEntry, Change::{self}, Channel, ChannelAction, ChannelFlags, ChannelId, ChannelOverwriteAction, ChannelType, Context, CreateEmbed, CreateMessage, EntityType, GuildId, PermissionOverwrite, PermissionOverwriteType, Permissions, ThreadAction, User, UserId, VideoQualityMode, audit_log::Action,
 };
+use sqlx::ColumnOrigin::Unknown;
 use std::fmt::Write;
 
 pub async fn build_channel_message(
@@ -177,6 +176,7 @@ fn build_channel_change_line(change: &Change) -> Option<String> {
         Change::Locked { old, new } => format_boolean_change!("Locked", old, new),
         Change::Archived { old, new } => format_boolean_change!("Archived", old, new),
         Change::Invitable { old, new } => format_boolean_change!("Inviteable", old, new),
+        Change::RtcRegion { old, new } => format_string_change!("RTC region", old, new),
 
         Change::DefaultAutoArchiveDuration { old, new } => {
             format_numeric_change_operation!("Archive duration", old, new, |v| format!(
@@ -184,9 +184,28 @@ fn build_channel_change_line(change: &Change) -> Option<String> {
                 v / 60
             ))
         }
+
+        Change::Position { old, new } => match (old, new) {
+            (Some(old), Some(new)) => {
+                if new > old {
+                    "- **Rank changed:** 🠉"
+                } else {
+                    "- **Rank changed:** 🠋"
+                }
+            }
+            _ => return None,
+        }
+        .to_string(),
         Change::Bitrate { old, new } => {
             format_numeric_change_operation!("Bitrate", old, new, |v| format!("`{}kbps`", v / 1000))
         }
+
+        Change::VideoQualityMode { old, new } => format_generic_change!("Video quality", old, new, |&q| 
+            match q{
+                VideoQualityMode::Auto => "`auto`",
+                VideoQualityMode::Full => "`720p`",
+                _ => "`unknown"
+            }),
 
         Change::Type { old, new } => format_generic_change!("Type", old, new, format_channel_type),
 

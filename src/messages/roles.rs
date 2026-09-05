@@ -96,7 +96,6 @@ fn build_role_change_line(change: &Change) -> Option<String> {
                     "- **Rank changed:** 🠋"
                 }
             }
-            (None, Some(_)) => "- **Rank changed**",
             _ => return None,
         }
         .to_string(),
