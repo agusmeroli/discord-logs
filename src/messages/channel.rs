@@ -8,9 +8,13 @@ use crate::{
     unwrap_change,
 };
 use serenity::all::{
-    AuditLogEntry, Change::{self}, Channel, ChannelAction, ChannelFlags, ChannelId, ChannelOverwriteAction, ChannelType, Context, CreateEmbed, CreateMessage, EntityType, GuildId, PermissionOverwrite, PermissionOverwriteType, Permissions, ThreadAction, User, UserId, VideoQualityMode, audit_log::Action,
+    AuditLogEntry,
+    Change::{self},
+    Channel, ChannelAction, ChannelFlags, ChannelId, ChannelOverwriteAction, ChannelType, Context,
+    CreateEmbed, CreateMessage, EntityType, GuildId, PermissionOverwrite, PermissionOverwriteType,
+    Permissions, ThreadAction, User, UserId, VideoQualityMode,
+    audit_log::Action,
 };
-use sqlx::ColumnOrigin::Unknown;
 use std::fmt::Write;
 
 pub async fn build_channel_message(
@@ -200,12 +204,13 @@ fn build_channel_change_line(change: &Change) -> Option<String> {
             format_numeric_change_operation!("Bitrate", old, new, |v| format!("`{}kbps`", v / 1000))
         }
 
-        Change::VideoQualityMode { old, new } => format_generic_change!("Video quality", old, new, |&q| 
-            match q{
+        Change::VideoQualityMode { old, new } => {
+            format_generic_change!("Video quality", old, new, |&q| match q {
                 VideoQualityMode::Auto => "`auto`",
                 VideoQualityMode::Full => "`720p`",
-                _ => "`unknown"
-            }),
+                _ => "`unknown",
+            })
+        }
 
         Change::Type { old, new } => format_generic_change!("Type", old, new, format_channel_type),
 

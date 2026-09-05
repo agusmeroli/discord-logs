@@ -1,6 +1,6 @@
 use serenity::all::{
-    AuditLogEntry, Change, Context, CreateEmbed, CreateMessage, GuildId, Permissions,
-    RoleAction, RoleId, User, audit_log::Action,
+    AuditLogEntry, Change, Context, CreateEmbed, CreateMessage, GuildId, Permissions, RoleAction,
+    RoleId, User, audit_log::Action,
 };
 use std::fmt::Write;
 

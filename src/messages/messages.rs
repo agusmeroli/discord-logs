@@ -1,8 +1,8 @@
 use std::error::Error;
 
 use serenity::all::{
-    Channel, CreateAttachment, CreateEmbed, CreateEmbedAuthor, CreateMessage,
-    GenericChannelId, GuildId, MessageId, User, UserId,
+    Channel, CreateAttachment, CreateEmbed, CreateEmbedAuthor, CreateMessage, GenericChannelId,
+    GuildId, MessageId, User, UserId,
 };
 use serenity::futures::future::join_all;
 use time::OffsetDateTime;
@@ -128,7 +128,7 @@ pub async fn build_deleted_message(
         .color(NEGATIVE_COLOUR)
         .description(embed_description);
 
-    /*// if an admin deletes the message, the pfp will be the admin's one 
+    /*// if an admin deletes the message, the pfp will be the admin's one
     if deleter_id.is_some() && let Some(user) = user {
         embed = embed.thumbnail(user.face(), None);
     }*/

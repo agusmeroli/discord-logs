@@ -1,7 +1,5 @@
 use serenity::{
-    all::{
-        AuditLogEntry, Change, Context, CreateEmbed, CreateMessage, Timestamp, User, UserId,
-    },
+    all::{AuditLogEntry, Change, Context, CreateEmbed, CreateMessage, Timestamp, User, UserId},
     small_fixed_array::FixedString,
 };
 
