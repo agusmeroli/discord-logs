@@ -316,7 +316,7 @@ fn build_timeout_message(
                                                 **Expires:** <t:{until}:R>\n\
                                                 **Reason:** {reason}"
             );
-            (description, "MEMBER TIMED-OUT", Colour::new(0x9C59B6))
+            (description, "MEMBER TIMED-OUT", DANGER_COLOUR)
         }
         (Some(until), _) => {
             let time_remaining = until.unix_timestamp() - now;
@@ -346,7 +346,7 @@ fn build_mute_message(
     admin_string: Option<String>,
 ) -> CreateEmbed<'static> {
     let (action, colour) = match (old, new) {
-        (_, Some(true)) => (format!("{action}"), NEGATIVE_COLOUR),
+        (_, Some(true)) => (format!("{action}"), DANGER_COLOUR),
         (Some(true), _) => (format!("un-{action}"), POSITIVE_COLOUR),
         // should not be reached but it's here anyways
         _ => (format!("{action} action"), ERROR_COLOUR),

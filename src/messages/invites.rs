@@ -99,7 +99,7 @@ pub fn build_join_message(
             "MEMBER JOINED"
         })
         .color(if is_suspicious {
-            SUSPICIOUS_JOIN_COLOUR
+            DANGER_COLOUR
         } else {
             POSITIVE_COLOUR
         })

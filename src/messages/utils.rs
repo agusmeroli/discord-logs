@@ -32,7 +32,7 @@ pub async fn send_message(message: CreateMessage<'static>, ctx: &Context, channe
 pub fn build_embed_author(user: &Option<User>, user_id: UserId) -> CreateEmbedAuthor<'static> {
     match (user, user_id) {
         (Some(user), _) => {
-            let avatar_url = user.avatar_url().unwrap_or_else(|| user.face());
+            let avatar_url = user.face();
             CreateEmbedAuthor::new(user.name.to_string()).icon_url(avatar_url)
         }
         (None, user_id) => CreateEmbedAuthor::new(user_id.to_string()),

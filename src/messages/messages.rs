@@ -123,10 +123,15 @@ pub async fn build_deleted_message(
          -# [Jump to surrounding]({message_link})"
     );
 
-    let mut embed = CreateEmbed::new()
+    let mut embed: CreateEmbed<'_> = CreateEmbed::new()
         .author(embed_author)
         .color(NEGATIVE_COLOUR)
         .description(embed_description);
+
+    /*// if an admin deletes the message, the pfp will be the admin's one 
+    if deleter_id.is_some() && let Some(user) = user {
+        embed = embed.thumbnail(user.face(), None);
+    }*/
 
     let mut message = reupload_attachements(attachments).await;
 
