@@ -359,7 +359,7 @@ fn perm_to_icon(allow: Permissions, deny: Permissions, perm: Permissions) -> &'s
     if perm.intersects(deny) {
         return "❌";
     }
-    "`╱`"
+    "`∕`"
 }
 
 fn unwrap_changes(changes: &[Change]) -> String {
@@ -374,10 +374,10 @@ fn unwrap_changes(changes: &[Change]) -> String {
 
     if is_change {
         format_permission_override_change(
-            allow_new.unwrap_or_else(Permissions::empty),
-            deny_new.unwrap_or_else(Permissions::empty),
             allow_old.unwrap_or_else(Permissions::empty),
+            allow_new.unwrap_or_else(Permissions::empty),
             deny_old.unwrap_or_else(Permissions::empty),
+            deny_new.unwrap_or_else(Permissions::empty),
         )
     } else {
         let allow = allow_new.or(*allow_old).unwrap_or_else(Permissions::empty);
