@@ -95,7 +95,7 @@ impl Handler {
             .attachments
             .iter()
             .filter(|attachement| attachement.size < self.config.max_upload_size)
-            .map(|attachment| format!("{}|{}", attachment.url, attachment.filename))
+            .map(|attachment| format!("{}|{}", attachment.proxy_url, attachment.filename))
             .collect();
 
         if urls.is_empty() {
