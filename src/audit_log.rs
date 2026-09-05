@@ -5,7 +5,7 @@ use serenity::{
     },
     nonmax::NonMaxU8,
 };
-use sqlx::{PgPool, Row};
+use sqlx::PgPool;
 
 // Max number of logs to look through
 const NUMBER_OF_LOG_LIMIT: Option<NonMaxU8> = NonMaxU8::new(10);
@@ -191,19 +191,17 @@ pub async fn get_bulk_delete_entry(
 }
 
 async fn is_new_entry(id: &AuditLogEntryId, count: i32, pool: &PgPool) -> bool {
-    let result: Result<Option<i32>, sqlx::Error> =
-        sqlx::query_scalar("SELECT update_audit_count($1, $2)")
-            .bind(id.get() as i64)
-            .bind(count)
-            .fetch_one(pool)
-            .await;
-
-    match result {
+    match sqlx::query_scalar::<_, Option<i32>>("SELECT update_audit_count($1, $2)")
+        .bind(id.get() as i64)
+        .bind(count)
+        .fetch_one(pool)
+        .await
+    {
         Ok(Some(_)) => true,
+        Ok(None) => false,
         Err(e) => {
             log::error!("Failed to upsert audit log: {}", e);
             false
         }
-        _ => false,
     }
 }
