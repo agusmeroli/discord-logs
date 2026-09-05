@@ -1,12 +1,15 @@
 use serenity::all::{
-    AuditLogEntry, Change, Colour, Context, CreateEmbed, CreateMessage, GuildId, Permissions,
+    AuditLogEntry, Change, Context, CreateEmbed, CreateMessage, GuildId, Permissions,
     RoleAction, RoleId, User, audit_log::Action,
 };
 use std::fmt::Write;
 
 use crate::{
     format_boolean_change, format_generic_change, format_string_change,
-    messages::utils::{build_embed_author, format_role, format_user},
+    messages::{
+        colours::*,
+        utils::{build_embed_author, format_role, format_user},
+    },
 };
 
 pub async fn build_role_message(
@@ -25,15 +28,15 @@ pub async fn build_role_message(
     };
 
     let (action, colour) = match entry.action {
-        Action::Role(RoleAction::Create) => ("created", Colour::new(0x00FF00)),
-        Action::Role(RoleAction::Delete) => ("deleted", Colour::new(0xFF0000)),
-        Action::Role(RoleAction::Update) => ("updated", Colour::new(0xFFAA00)),
+        Action::Role(RoleAction::Create) => ("created", POSITIVE_COLOUR),
+        Action::Role(RoleAction::Delete) => ("deleted", NEGATIVE_COLOUR),
+        Action::Role(RoleAction::Update) => ("updated", EDIT_COLOUR),
         a => {
             log::error!(
                 "Invalid action passed to channel message builder: {}",
                 a.num()
             );
-            ("unknown action", Colour::new(0x000000))
+            ("unknown action", ERROR_COLOUR)
         }
     };
 

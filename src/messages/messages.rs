@@ -1,12 +1,13 @@
 use std::error::Error;
 
 use serenity::all::{
-    Channel, Colour, CreateAttachment, CreateEmbed, CreateEmbedAuthor, CreateMessage,
+    Channel, CreateAttachment, CreateEmbed, CreateEmbedAuthor, CreateMessage,
     GenericChannelId, GuildId, MessageId, User, UserId,
 };
 use serenity::futures::future::join_all;
 use time::OffsetDateTime;
 
+use crate::messages::colours::*;
 use crate::messages::format_time::format_time_diff;
 use crate::messages::utils::{
     build_embed_author, build_embed_author_admin, format_channel, format_user,
@@ -59,7 +60,7 @@ pub fn build_edited_message(
 
     let embed = CreateEmbed::new()
         .author(embed_author)
-        .color(Colour::new(0xFFAA00))
+        .color(EDIT_COLOUR)
         .description(embed_description);
 
     CreateMessage::new().embed(embed)
@@ -124,7 +125,7 @@ pub async fn build_deleted_message(
 
     let mut embed = CreateEmbed::new()
         .author(embed_author)
-        .color(Colour::new(0xFF0000))
+        .color(NEGATIVE_COLOUR)
         .description(embed_description);
 
     let mut message = reupload_attachements(attachments).await;
@@ -134,14 +135,14 @@ pub async fn build_deleted_message(
 
         if !attachments.is_empty() {
             // First attachment goes in the main embed
-            embed = embed.thumbnail(attachments[0].to_string(), None);
+            embed = embed.image(attachments[0].to_string(), None);
             message = message.embed(embed);
 
             // Any additional attachments get their own embeds
             for attachment in attachments.iter().skip(1) {
                 let extra_embed = CreateEmbed::new()
-                    .thumbnail((*attachment).to_string(), None)
-                    .color(Colour::new(0xFF0000));
+                    .image((*attachment).to_string(), None)
+                    .color(NEGATIVE_COLOUR);
                 message = message.add_embed(extra_embed);
             }
             return message;
@@ -187,7 +188,7 @@ pub fn build_bulk_delete_message(
 
     let embed = CreateEmbed::new()
         .title("BULK MESSAGE DELETE")
-        .color(Colour::new(0xFF0000))
+        .color(NEGATIVE_COLOUR)
         .description(embed_description);
 
     CreateMessage::new().embed(embed)

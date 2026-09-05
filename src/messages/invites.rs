@@ -1,11 +1,12 @@
 use serenity::all::audit_log::Action;
 use serenity::all::{
-    AuditLogEntry, Colour, CreateEmbed, CreateEmbedAuthor, CreateMessage, InviteCreateEvent,
-    Member, MemberAction, User, UserId,
+    AuditLogEntry, CreateEmbed, CreateEmbedAuthor, CreateMessage, InviteCreateEvent, Member,
+    MemberAction, User, UserId,
 };
 use time::OffsetDateTime;
 
 use crate::datastructures::UsedInvite;
+use crate::messages::colours::*;
 use crate::messages::format_time::format_time_diff;
 use crate::messages::utils::{build_embed_author_admin, format_user, get_reason};
 
@@ -98,9 +99,9 @@ pub fn build_join_message(
             "MEMBER JOINED"
         })
         .color(if is_suspicious {
-            Colour::new(0xFFA500)
+            SUSPICIOUS_JOIN_COLOUR
         } else {
-            Colour::new(0x00FF00)
+            POSITIVE_COLOUR
         })
         .description(embed_description)
         .thumbnail(avatar_url, None)
@@ -190,7 +191,7 @@ pub fn build_leave_message(
     let embed = CreateEmbed::new()
         .author(embed_author)
         .title(title)
-        .color(Colour::new(0xFF0000))
+        .color(NEGATIVE_COLOUR)
         .description(embed_description)
         .thumbnail(avatar_url, None);
 
@@ -236,7 +237,7 @@ pub fn build_invite_message(data: &InviteCreateEvent) -> CreateMessage<'static> 
     let mut embed = CreateEmbed::new()
         .author(embed_author)
         .title("INVITE CREATED")
-        .color(Colour::new(0x00AAFF))
+        .color(NEUTRAL_ACTION_COLOUR)
         .description(embed_description);
     if let Some(url) = &avatar_url {
         embed = embed.thumbnail(url.clone(), None);

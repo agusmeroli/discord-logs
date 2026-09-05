@@ -1,5 +1,6 @@
 pub mod automod;
 pub mod channel;
+mod colours;
 pub mod format_time;
 pub mod invites;
 pub mod member;

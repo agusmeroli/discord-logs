@@ -8,6 +8,7 @@ use serenity::{
 use crate::{
     find_change, format_boolean_change, format_string_change,
     messages::{
+        colours::*,
         format_time::format_time_diff,
         utils::{build_embed_author, build_embed_author_admin, format_user, get_reason},
     },
@@ -53,17 +54,17 @@ pub async fn build_role_change_message(
         (Some(_), None) => (
             "MEMBER ROLE ADDED",
             format!("{admin_str} **added roles to** {user_str}"),
-            Colour::new(0x00FF00),
+            POSITIVE_COLOUR,
         ),
         (None, Some(_)) => (
             "MEMBER ROLE REMOVED",
             format!("{admin_str} **removed roles from** {user_str}"),
-            Colour::new(0xFF0000),
+            NEGATIVE_COLOUR,
         ),
         _ => (
             "ROLES UPDATED",
             format!("{admin_str} **updated roles for** {user_str}"),
-            Colour::new(0xFFAA00),
+            EDIT_COLOUR,
         ),
     };
 
@@ -134,7 +135,7 @@ pub fn build_purge_message(
     let embed = CreateEmbed::new()
         .title("MEMBERS PURGE")
         .author(embed_author)
-        .color(Colour::new(0xFF0000))
+        .color(NEGATIVE_COLOUR)
         .description(message);
 
     Some(CreateMessage::new().embed(embed))
@@ -168,7 +169,7 @@ pub async fn build_bot_message(
     let embed = CreateEmbed::new()
         .title("BOT ADDED")
         .author(embed_author)
-        .color(Colour::new(0x00FF00))
+        .color(POSITIVE_COLOUR)
         .description(message)
         .thumbnail(avatar_url, None);
 
@@ -203,7 +204,7 @@ pub async fn build_unban_message(
     let embed = CreateEmbed::new()
         .title("MEMBER UNBANNED")
         .author(embed_author)
-        .color(Colour::new(0x00FF00))
+        .color(POSITIVE_COLOUR)
         .description(message)
         .thumbnail(avatar_url, None);
 
@@ -288,7 +289,7 @@ fn format_member_changes(
     CreateEmbed::new()
         .description(description)
         .title("MEMBER UPDATED")
-        .color(Colour::new(0xFFAA00))
+        .color(EDIT_COLOUR)
 }
 
 fn build_timeout_message(
@@ -325,14 +326,10 @@ fn build_timeout_message(
                 "{admin_string} **removed time-out from** {user_string}**:**\n\n\
                 **Time left before removal:** `{formatted_time}`"
             );
-            (description, "TIMEOUT REMOVED", Colour::new(0xFF0000))
+            (description, "TIMEOUT REMOVED", NEGATIVE_COLOUR)
         }
         // should not be reached but it's here anyways
-        _ => (
-            "timeout action".to_string(),
-            "TIMEOUT ACTION",
-            Colour::new(0),
-        ),
+        _ => ("timeout action".to_string(), "TIMEOUT ACTION", ERROR_COLOUR),
     };
 
     CreateEmbed::new()
@@ -349,10 +346,10 @@ fn build_mute_message(
     admin_string: Option<String>,
 ) -> CreateEmbed<'static> {
     let (action, colour) = match (old, new) {
-        (_, Some(true)) => (format!("{action}"), Colour::new(0xFF0000)),
-        (Some(true), _) => (format!("un-{action}"), Colour::new(0x00FF00)),
+        (_, Some(true)) => (format!("{action}"), NEGATIVE_COLOUR),
+        (Some(true), _) => (format!("un-{action}"), POSITIVE_COLOUR),
         // should not be reached but it's here anyways
-        _ => (format!("{action} action"), Colour::new(0)),
+        _ => (format!("{action} action"), ERROR_COLOUR),
     };
 
     let title = format!("MEMBER {action} FROM VC").to_uppercase();
@@ -383,7 +380,7 @@ fn build_username_change(
     let mut embed = CreateEmbed::new()
         .description(description)
         .title("MEMBER NICKNAME UPDATE")
-        .color(Colour::new(0xFFAA00));
+        .color(EDIT_COLOUR);
 
     let globalname = user
         .as_ref()

@@ -2,8 +2,8 @@ use std::fmt::Display;
 
 use serenity::{
     all::{
-        Change, Channel, ChannelId, Context, CreateEmbedAuthor, CreateMessage, Role,
-        RoleId, User, UserId,
+        Change, Channel, ChannelId, Context, CreateEmbedAuthor, CreateMessage, Role, RoleId, User,
+        UserId,
     },
     small_fixed_array::FixedString,
 };

@@ -1,14 +1,16 @@
 use crate::{
     find_change, format_boolean_change, format_generic_change, format_numeric_change,
     format_numeric_change_operation, format_string_change,
-    messages::utils::{build_embed_author, format_channel, format_user},
+    messages::{
+        colours::*,
+        utils::{build_embed_author, format_channel, format_user},
+    },
     unwrap_change,
 };
 use serenity::all::{
     AuditLogEntry, Change, Channel, ChannelAction, ChannelFlags, ChannelId, ChannelOverwriteAction,
-    ChannelType, Colour, Context, CreateEmbed, CreateMessage, EntityType, GuildId,
-    PermissionOverwrite, PermissionOverwriteType, Permissions, ThreadAction, User, UserId,
-    audit_log::Action,
+    ChannelType, Context, CreateEmbed, CreateMessage, EntityType, GuildId, PermissionOverwrite,
+    PermissionOverwriteType, Permissions, ThreadAction, User, UserId, audit_log::Action,
 };
 use std::fmt::Write;
 
@@ -43,10 +45,10 @@ pub async fn build_channel_message(
 
     let (action, colour) = match entry.action {
         Action::Channel(ChannelAction::Create) | Action::Thread(ThreadAction::Create) => {
-            ("created", Colour::new(0x00FF00))
+            ("created", POSITIVE_COLOUR)
         }
         Action::Channel(ChannelAction::Delete) | Action::Thread(ThreadAction::Delete) => {
-            ("deleted", Colour::new(0xFF0000))
+            ("deleted", NEGATIVE_COLOUR)
         }
         Action::Channel(ChannelAction::Update) | Action::Thread(ThreadAction::Update) => {
             // ignore channel updates made by bots
@@ -55,14 +57,14 @@ pub async fn build_channel_message(
             {
                 return None;
             }
-            ("updated", Colour::new(0xFFAA00))
+            ("updated", EDIT_COLOUR)
         }
         a => {
             log::error!(
                 "Invalid action passed to channel message builder: {}",
                 a.num()
             );
-            ("unknown action", Colour::new(0x000000))
+            ("unknown action", ERROR_COLOUR)
         }
     };
 
@@ -131,21 +133,15 @@ pub async fn build_permission_override_message(
     };
 
     let (action, colour) = match entry.action {
-        Action::ChannelOverwrite(ChannelOverwriteAction::Create) => {
-            ("created", Colour::new(0x00FF00))
-        }
-        Action::ChannelOverwrite(ChannelOverwriteAction::Delete) => {
-            ("deleted", Colour::new(0xFF0000))
-        }
-        Action::ChannelOverwrite(ChannelOverwriteAction::Update) => {
-            ("updated", Colour::new(0xFFAA00))
-        }
+        Action::ChannelOverwrite(ChannelOverwriteAction::Create) => ("created", POSITIVE_COLOUR),
+        Action::ChannelOverwrite(ChannelOverwriteAction::Delete) => ("deleted", NEGATIVE_COLOUR),
+        Action::ChannelOverwrite(ChannelOverwriteAction::Update) => ("updated", EDIT_COLOUR),
         a => {
             log::error!(
                 "Invalid action passed to channel message builder: {}",
                 a.num()
             );
-            ("unknown action", Colour::new(0x000000))
+            ("unknown action", ERROR_COLOUR)
         }
     };
 

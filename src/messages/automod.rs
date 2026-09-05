@@ -1,10 +1,13 @@
 use crate::{
     find_change, format_boolean_change, format_string_change,
-    messages::utils::{build_embed_author, format_user, get_name},
+    messages::{
+        colours::*,
+        utils::{build_embed_author, format_user, get_name},
+    },
 };
 use serenity::all::{
-    AuditLogEntry, AutoModAction, Change, ChannelId, Colour, Context, CreateEmbed, CreateMessage,
-    GuildId, RoleId, RuleId, User, audit_log::Action,
+    AuditLogEntry, AutoModAction, Change, ChannelId, Context, CreateEmbed, CreateMessage, GuildId,
+    RoleId, RuleId, User, audit_log::Action,
 };
 use std::fmt::Write;
 
@@ -24,9 +27,9 @@ pub async fn build_automod_message(
     };
 
     let (action, colour) = match entry.action {
-        Action::AutoMod(AutoModAction::RuleCreate) => ("created", Colour::new(0x00FF00)),
-        Action::AutoMod(AutoModAction::RuleDelete) => ("deleted", Colour::new(0xFF0000)),
-        Action::AutoMod(AutoModAction::RuleUpdate) => ("updated", Colour::new(0xFFAA00)),
+        Action::AutoMod(AutoModAction::RuleCreate) => ("created", POSITIVE_COLOUR),
+        Action::AutoMod(AutoModAction::RuleDelete) => ("deleted", NEGATIVE_COLOUR),
+        Action::AutoMod(AutoModAction::RuleUpdate) => ("updated", EDIT_COLOUR),
         _ => {
             // We don't care about other actions like messages being blocked
             return None;

@@ -1,11 +1,14 @@
 use serenity::all::{
-    AuditLogEntry, Change, Colour, Context, CreateEmbed, CreateMessage, EmojiAction, StickerAction,
+    AuditLogEntry, Change, Context, CreateEmbed, CreateMessage, EmojiAction, StickerAction,
     StickerFormatType, StickerId, User, audit_log::Action,
 };
 
 use crate::{
     find_change, format_string_change,
-    messages::utils::{build_embed_author, format_user, get_name},
+    messages::{
+        colours::*,
+        utils::{build_embed_author, format_user, get_name},
+    },
 };
 
 pub async fn build_sticker_message(
@@ -28,15 +31,15 @@ pub async fn build_sticker_message(
     let sticker = sticker_id.to_sticker(&ctx.http).await.ok();
 
     let (action, colour) = match entry.action {
-        Action::Sticker(StickerAction::Create) => ("created", Colour::new(0x00FF00)),
-        Action::Sticker(StickerAction::Delete) => ("deleted", Colour::new(0xFF0000)),
-        Action::Sticker(StickerAction::Update) => ("updated", Colour::new(0xFFAA00)),
+        Action::Sticker(StickerAction::Create) => ("created", POSITIVE_COLOUR),
+        Action::Sticker(StickerAction::Delete) => ("deleted", NEGATIVE_COLOUR),
+        Action::Sticker(StickerAction::Update) => ("updated", EDIT_COLOUR),
         a => {
             log::error!(
                 "Invalid action passed to sticker message builder: {}",
                 a.num()
             );
-            ("unknown action", Colour::new(0x000000))
+            ("unknown action", ERROR_COLOUR)
         }
     };
 
@@ -82,15 +85,15 @@ pub fn build_emoji_message(
     let user_str = format_user(&user, user_id);
 
     let (action, colour) = match entry.action {
-        Action::Emoji(EmojiAction::Create) => ("created", Colour::new(0x00FF00)),
-        Action::Emoji(EmojiAction::Delete) => ("deleted", Colour::new(0xFF0000)),
-        Action::Emoji(EmojiAction::Update) => ("updated", Colour::new(0xFFAA00)),
+        Action::Emoji(EmojiAction::Create) => ("created", POSITIVE_COLOUR),
+        Action::Emoji(EmojiAction::Delete) => ("deleted", NEGATIVE_COLOUR),
+        Action::Emoji(EmojiAction::Update) => ("updated", EDIT_COLOUR),
         a => {
             log::error!(
                 "Invalid action passed to emoji message builder: {}",
                 a.num()
             );
-            ("unknown action", Colour::new(0x000000))
+            ("unknown action", ERROR_COLOUR)
         }
     };
 
