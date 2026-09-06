@@ -108,6 +108,25 @@ macro_rules! format_generic_change {
 }
 
 #[macro_export]
+macro_rules! format_generic_change_internal {
+    ($name:expr, $old:expr, $new:expr, $operation:expr) => {{
+        const NAME: &str = $name;
+        let op = $operation;
+        let old = $old;
+        let new = $new;
+
+        match (old, new) {
+            (None, Some(new)) => Some(format!("- **{NAME}:** {}", op(new))),
+            (Some(old), None) => Some(format!("- **{NAME}:** *was* {}", op(old))),
+            (Some(old), Some(new)) if old != new => {
+                Some(format!("- **{NAME}:** {} ➜ {}", op(old), op(new)))
+            }
+            _ => None, // Returns Option<String> directly to the caller, not the function!
+        }
+    }};
+}
+
+#[macro_export]
 macro_rules! format_numeric_change_operation {
     ($name:expr, $old:expr, $new:expr, $operation: expr) => {{
         const NAME: &str = $name;

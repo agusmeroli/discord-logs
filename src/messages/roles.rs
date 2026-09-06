@@ -1,6 +1,6 @@
 use serenity::all::{
     AuditLogEntry, Change, Context, CreateEmbed, CreateMessage, GuildId, Permissions, RoleAction,
-    RoleId, User, audit_log::Action,
+    RoleColours, RoleId, User, audit_log::Action,
 };
 use std::fmt::Write;
 
@@ -76,9 +76,8 @@ fn build_role_change_line(change: &Change) -> Option<String> {
         Change::Hoist { old, new } => format_boolean_change!("Hoisted", old, new),
         Change::Mentionable { old, new } => format_boolean_change!("Pingable", old, new),
         Change::UnicodeEmoji { old, new } => format_string_change!("Icon", old, new),
-        // TODO: Support Colors when it will be updated
-        Change::Color { old, new } => {
-            format_generic_change!("Colour", old, new, |c| format!("#{:06X}", c))
+        Change::Colors { old, new } => {
+            format_generic_change!("Colour", old, new, format_role_colours)
         }
 
         Change::Permissions { old, new } => match (old, new) {
@@ -102,6 +101,23 @@ fn build_role_change_line(change: &Change) -> Option<String> {
 
         _ => return None,
     })
+}
+
+fn format_role_colours(colour: &RoleColours) -> String {
+    if colour.secondary_colour.is_none() && colour.tertiary_colour.is_none() {
+        return format!("`#{}`", colour.primary_colour.hex());
+    }
+    if colour.tertiary_colour.is_none()
+        && let Some(secondary) = colour.secondary_colour
+    {
+        return format!(
+            "*Gradient* `#{}` `#{}`",
+            colour.primary_colour.hex(),
+            secondary.hex()
+        );
+    }
+
+    "*Holographic*".to_string()
 }
 
 fn format_permission_change(old: &Permissions, new: &Permissions) -> String {
