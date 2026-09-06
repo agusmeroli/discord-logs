@@ -174,11 +174,9 @@ pub fn build_leave_message(
     };
 
     let leave_count = if let Some(join_amount) = join_amount
-        && join_amount > 1
     {
-        let leave_amount = join_amount - 1;
         format!(
-            "\n**Previously left** {leave_amount} **time{}**",
+            "\n**Previously left** {join_amount} **time{}**",
             if join_amount > 1 { "s" } else { "" }
         )
     } else {
