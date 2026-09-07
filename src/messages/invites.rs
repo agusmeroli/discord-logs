@@ -72,7 +72,7 @@ pub fn build_join_message(
             inviter_name = inv.inviter_name,
             invite_created = inv.created_at,
             n_uses = inv.uses,
-            s = if inv.uses == 1 {""} else {"s"}
+            s = if inv.uses == 1 { "" } else { "s" }
         ),
         None => "*Could not determine which invite was used.*".to_string(),
     };
@@ -173,8 +173,7 @@ pub fn build_leave_message(
         String::new()
     };
 
-    let leave_count = if let Some(join_amount) = join_amount
-    {
+    let leave_count = if let Some(join_amount) = join_amount {
         format!(
             "\n**Previously left** {join_amount} **time{}**",
             if join_amount > 1 { "s" } else { "" }
