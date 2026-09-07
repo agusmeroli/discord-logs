@@ -1,5 +1,6 @@
 use crate::{
-    find_change, format_boolean_change, format_generic_change_internal, format_string_change,
+    find_change, format_boolean_change, format_generic_change_internal,
+    format_string_change,
     messages::{
         colours::*,
         format_time::format_time_diff,
